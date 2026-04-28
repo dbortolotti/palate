@@ -1,33 +1,45 @@
 export function retrieveCandidates({ store, intent, extractedEntities = [] }) {
   if (extractedEntities.length > 0) {
-    const matched = store.findEntitiesByNames(extractedEntities.map((item) => item.canonical_name ?? item.name ?? item));
-    if (matched.length > 0) return matched;
+    const optionNames = extractedEntities.map((item) => item.canonical_name ?? item.name ?? item);
+    const { matched, unmatched } = store.matchEntitiesByNames(optionNames);
+    return {
+      candidates: filterByType(matched, intent.entity_type),
+      unmatched_options: unmatched,
+      constrained_to_options: true
+    };
   }
-  return store.listEntities().filter((entity) => {
-    if (!intent.entity_type) return true;
-    return entity.type === intent.entity_type;
-  });
+
+  const typed = filterByType(store.listEntities(), intent.entity_type);
+  const searched = applySearchText(typed, intent.search_text);
+  return {
+    candidates: searched,
+    unmatched_options: [],
+    constrained_to_options: false
+  };
 }
 
 export function rankCandidates({ candidates, intent }) {
   const avoidBelow = intent.filters?.min_rating;
+  const recommendedBy = intent.filters?.recommended_by;
   const required = intent.attributes ?? [];
   const context = intent.context ?? {};
+  const searchText = intent.search_text ?? "";
 
   return candidates
     .map((entity) => {
-      const facts = scoreEntity(entity, { required, context, avoidBelow });
+      const facts = scoreEntity(entity, { required, context, avoidBelow, recommendedBy, searchText });
       return { entity, score: facts.total, facts };
     })
     .filter((result) => !result.facts.excluded)
     .sort((a, b) => b.score - a.score);
 }
 
-function scoreEntity(entity, { required, context, avoidBelow }) {
+function scoreEntity(entity, { required, context, avoidBelow, recommendedBy, searchText }) {
   const facts = {
     preference: 0,
     attribute_match: 0,
     context_match: 0,
+    search_match: 0,
     provenance: 0,
     familiarity: 0,
     penalties: 0,
@@ -37,6 +49,7 @@ function scoreEntity(entity, { required, context, avoidBelow }) {
     excluded: false,
     total: 0
   };
+  let matchedRecommendedBy = false;
 
   for (const signal of entity.signals ?? []) {
     if (signal.type === "rating") {
@@ -55,7 +68,9 @@ function scoreEntity(entity, { required, context, avoidBelow }) {
       facts.negative_signals.push(signal.value);
     }
     if (signal.type === "recommended_by") {
-      facts.provenance += 0.25;
+      const matchesRequestedPerson = recommendedBy && normalize(signal.value) === normalize(recommendedBy);
+      matchedRecommendedBy = matchedRecommendedBy || matchesRequestedPerson;
+      facts.provenance += matchesRequestedPerson ? 0.6 : 0.25;
       facts.signal_facts.push(`recommended by ${signal.value}`);
     }
     if (signal.type === "saved") {
@@ -66,6 +81,11 @@ function scoreEntity(entity, { required, context, avoidBelow }) {
       facts.familiarity += 0.1;
       facts.signal_facts.push("tried before");
     }
+  }
+
+  if (recommendedBy && !matchedRecommendedBy) {
+    facts.excluded = true;
+    facts.negative_signals.push(`not recommended by ${recommendedBy}`);
   }
 
   for (const attr of required) {
@@ -84,10 +104,16 @@ function scoreEntity(entity, { required, context, avoidBelow }) {
     }
   }
 
+  facts.search_match = scoreTextMatch(entity, searchText);
+  if (facts.search_match > 0) {
+    facts.signal_facts.push(`matched memory text: ${facts.search_match.toFixed(2)}`);
+  }
+
   facts.total = round(
     facts.preference * 1.4
     + facts.attribute_match
     + facts.context_match
+    + facts.search_match
     + facts.provenance
     + facts.familiarity
     + facts.penalties
@@ -110,3 +136,57 @@ export function buildGrounding(results) {
 function round(value) {
   return Math.round(value * 100) / 100;
 }
+
+function filterByType(entities, entityType) {
+  if (!entityType) return entities;
+  return entities.filter((entity) => entity.type === entityType);
+}
+
+function applySearchText(entities, searchText) {
+  const tokens = tokenize(searchText);
+  if (tokens.length === 0) return entities;
+
+  const matches = entities.filter((entity) => scoreTextMatch(entity, searchText) > 0);
+  return matches.length > 0 ? matches : entities;
+}
+
+function scoreTextMatch(entity, searchText) {
+  const tokens = tokenize(searchText);
+  if (tokens.length === 0) return 0;
+
+  const haystack = normalize([
+    entity.canonical_name,
+    entity.source_text,
+    entity.notes,
+    Object.keys(entity.attributes ?? {}).filter((key) => Number(entity.attributes[key]) > 0.55).join(" "),
+    ...(entity.signals ?? []).map((signal) => `${signal.type} ${signal.value} ${signal.provenance ?? ""}`)
+  ].filter(Boolean).join(" "));
+  const matched = tokens.filter((token) => haystack.includes(token));
+  return matched.length / tokens.length;
+}
+
+function tokenize(value) {
+  return normalize(value)
+    .split(" ")
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+}
+
+function normalize(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const STOP_WORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "that",
+  "this",
+  "what",
+  "which",
+  "thing",
+  "things",
+  "place",
+  "places",
+  "something"
+]);

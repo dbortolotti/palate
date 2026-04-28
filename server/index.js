@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { buildGrounding, rankCandidates, retrieveCandidates } from "./core.js";
 import { explainResults, extractEntities, normalizeEnrichment, parseIntent } from "./llm.js";
-import { ATTRIBUTE_KEYS, ENTITY_TYPES } from "./schema.js";
+import { ENTITY_TYPES } from "./schema.js";
 import { openStore } from "./storage.js";
 
 const store = openStore();
@@ -32,12 +32,12 @@ server.registerTool(
       ? await extractEntities({ text: options_text, expectedType: intent.entity_type })
       : { entities: [] };
 
-    const candidates = retrieveCandidates({
+    const retrieval = retrieveCandidates({
       store,
       intent,
       extractedEntities: extraction.entities
     });
-    const ranked = rankCandidates({ candidates, intent });
+    const ranked = rankCandidates({ candidates: retrieval.candidates, intent });
     const grounding = buildGrounding(ranked);
     const explanation = explain
       ? await explainResults({ query, intent, grounding })
@@ -54,6 +54,7 @@ server.registerTool(
       decision_id: Number(decisionId),
       intent,
       extracted_entities: extraction.entities,
+      retrieval: describeRetrieval(retrieval),
       ranked_results: grounding,
       explanation
     });
@@ -74,8 +75,8 @@ server.registerTool(
   async ({ query, options_text, context = {} }) => {
     const intent = await parseIntent({ query, context });
     const extraction = await extractEntities({ text: options_text, expectedType: intent.entity_type });
-    const candidates = retrieveCandidates({ store, intent, extractedEntities: extraction.entities });
-    const ranked = rankCandidates({ candidates, intent });
+    const retrieval = retrieveCandidates({ store, intent, extractedEntities: extraction.entities });
+    const ranked = rankCandidates({ candidates: retrieval.candidates, intent });
     const grounding = buildGrounding(ranked);
     const explanation = await explainResults({ query, intent, grounding });
 
@@ -90,6 +91,7 @@ server.registerTool(
       decision_id: Number(decisionId),
       intent,
       extracted_entities: extraction.entities,
+      retrieval: describeRetrieval(retrieval),
       ranked_results: grounding,
       explanation
     });
@@ -151,10 +153,10 @@ server.registerTool(
   },
   async ({ query, context = {} }) => {
     const intent = await parseIntent({ query, context });
-    const candidates = retrieveCandidates({ store, intent });
-    const ranked = rankCandidates({ candidates, intent });
+    const retrieval = retrieveCandidates({ store, intent });
+    const ranked = rankCandidates({ candidates: retrieval.candidates, intent });
     const grounding = buildGrounding(ranked);
-    return json({ intent, results: grounding });
+    return json({ intent, retrieval: describeRetrieval(retrieval), results: grounding });
   }
 );
 
@@ -185,16 +187,36 @@ server.registerTool(
       context: z.record(z.unknown()).optional()
     }
   },
-  async ({ query = "", chosen_entity_id, context = {} }) => {
-    const id = store.logDecision({
-      query,
-      context,
-      options: [],
-      ranked: [],
-      chosen_entity_id
-    });
+  async ({ decision_id, query = "", chosen_entity_id, context = {} }) => {
+    let id = decision_id;
+    let updated_existing_decision = false;
+
+    if (decision_id !== undefined) {
+      const changes = store.updateDecisionChoice(decision_id, chosen_entity_id);
+      if (changes === 0) {
+        return json({
+          logged: false,
+          error: `No decision found for decision_id ${decision_id}.`
+        });
+      }
+      updated_existing_decision = true;
+    } else {
+      id = store.logDecision({
+        query,
+        context,
+        options: [],
+        ranked: [],
+        chosen_entity_id
+      });
+    }
+
     store.addSignal(chosen_entity_id, "chosen", true);
-    return json({ logged: true, decision_id: Number(id), chosen_entity_id });
+    return json({
+      logged: true,
+      decision_id: Number(id),
+      chosen_entity_id,
+      updated_existing_decision
+    });
   }
 );
 
@@ -206,6 +228,19 @@ function json(value) {
         text: JSON.stringify(value, null, 2)
       }
     ]
+  };
+}
+
+function describeRetrieval(retrieval) {
+  return {
+    constrained_to_options: retrieval.constrained_to_options,
+    unmatched_options: retrieval.unmatched_options,
+    candidate_count: retrieval.candidates.length,
+    matched_candidates: retrieval.candidates.map((entity) => ({
+      id: entity.id,
+      name: entity.canonical_name,
+      type: entity.type
+    }))
   };
 }
 

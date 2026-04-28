@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "seed": "node server/seed.js",
-    "check": "node --check server/index.js && node --check server/llm.js && node --check server/storage.js && node --check server/core.js && node --check server/seed.js"
+    "check": "node --check server/index.js && node --check server/llm.js && node --check server/storage.js && node --check server/core.js && node --check server/seed.js",
+    "test": "node --test server/*.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",

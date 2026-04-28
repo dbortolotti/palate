@@ -42,6 +42,16 @@ function migrate(db) {
       FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
     );
 
+    DELETE FROM signals
+    WHERE id NOT IN (
+      SELECT MIN(id)
+      FROM signals
+      GROUP BY entity_id, type, value, COALESCE(provenance, '')
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS signals_entity_type_value_provenance_unique
+    ON signals (entity_id, type, value, COALESCE(provenance, ''));
+
     CREATE TABLE IF NOT EXISTS decisions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       query TEXT NOT NULL,
@@ -93,7 +103,7 @@ export class PalateStore {
 
   addSignal(entityId, type, value, provenance = null) {
     this.db.prepare(`
-      INSERT INTO signals (entity_id, type, value, provenance)
+      INSERT OR IGNORE INTO signals (entity_id, type, value, provenance)
       VALUES (?, ?, ?, ?)
     `).run(entityId, type, String(value), provenance);
   }
@@ -111,12 +121,26 @@ export class PalateStore {
   }
 
   findEntitiesByNames(names) {
+    return this.matchEntitiesByNames(names).matched;
+  }
+
+  matchEntitiesByNames(names) {
     const all = this.listEntities();
-    return names.map((name) => {
+    const matched = [];
+    const unmatched = [];
+
+    for (const name of names) {
       const normalized = normalize(name);
-      return all.find((entity) => normalize(entity.canonical_name) === normalized)
-        ?? all.find((entity) => normalize(entity.canonical_name).includes(normalized) || normalized.includes(normalize(entity.canonical_name)));
-    }).filter(Boolean);
+      const entity = all.find((candidate) => normalize(candidate.canonical_name) === normalized)
+        ?? all.find((candidate) => normalize(candidate.canonical_name).includes(normalized) || normalized.includes(normalize(candidate.canonical_name)));
+      if (entity) {
+        matched.push(entity);
+      } else {
+        unmatched.push(name);
+      }
+    }
+
+    return { matched: uniqueById(matched), unmatched };
   }
 
   logDecision({ query, context, options, ranked, chosen_entity_id = null }) {
@@ -132,6 +156,15 @@ export class PalateStore {
     );
     return result.lastInsertRowid;
   }
+
+  updateDecisionChoice(decisionId, chosenEntityId) {
+    const result = this.db.prepare(`
+      UPDATE decisions
+      SET chosen_entity_id = ?
+      WHERE id = ?
+    `).run(chosenEntityId, decisionId);
+    return result.changes;
+  }
 }
 
 function normalize(value) {
@@ -140,4 +173,13 @@ function normalize(value) {
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, Number(value)));
+}
+
+function uniqueById(entities) {
+  const seen = new Set();
+  return entities.filter((entity) => {
+    if (seen.has(entity.id)) return false;
+    seen.add(entity.id);
+    return true;
+  });
 }

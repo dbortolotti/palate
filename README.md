@@ -37,6 +37,13 @@ Set `OPENAI_API_KEY` in `.env` before using tools that require the LLM.
 npm start
 ```
 
+## Verify
+
+```sh
+npm run check
+npm test
+```
+
 ## MCP Tools
 
 - `palate_query`: interpret a free-form taste query, rank memory, and explain results
@@ -45,6 +52,8 @@ npm start
 - `palate_recall`: recall matching explicit memory
 - `palate_enrich_item`: normalize noisy text into the fixed attribute schema
 - `palate_log_decision`: record what the user chose
+
+Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
 
 ## Example MCP Config
 
