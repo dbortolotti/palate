@@ -24,9 +24,9 @@ The core system owns:
 ## Setup
 
 ```sh
-npm install
+python3 -m pip install -r requirements.txt
 cp .env.example .env
-npm run seed
+python3 -m palate.seed
 ```
 
 Set `OPENAI_API_KEY` in `.env` before using tools that require the LLM.
@@ -34,14 +34,14 @@ Set `OPENAI_API_KEY` in `.env` before using tools that require the LLM.
 ## Run
 
 ```sh
-npm start
+python3 -m palate.server
 ```
 
 ## Verify
 
 ```sh
-npm run check
-npm test
+python3 -m compileall palate tests
+python3 -m unittest discover -s tests
 ```
 
 ## MCP Tools
@@ -61,8 +61,8 @@ Option-set tools stay constrained to the provided options. If a pasted option is
 {
   "mcpServers": {
     "palate": {
-      "command": "npm",
-      "args": ["start"],
+      "command": "python3",
+      "args": ["-m", "palate.server"],
       "cwd": "/Users/oric/git/palate",
       "env": {
         "OPENAI_API_KEY": "sk-...",
