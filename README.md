@@ -37,6 +37,12 @@ Set `OPENAI_API_KEY` in `.env` before using tools that require the LLM.
 python3 -m palate.server
 ```
 
+For HTTP deployment behind Tailscale:
+
+```sh
+PALATE_TRANSPORT=streamable-http PALATE_HOST=127.0.0.1 PALATE_PORT=8787 python3 -m palate.server
+```
+
 ## Verify
 
 ```sh
@@ -54,6 +60,10 @@ python3 -m unittest discover -s tests
 - `palate_log_decision`: record what the user chose
 
 Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
+
+## Deployment
+
+This repo includes a macOS LaunchAgent template and Tailscale Serve notes in [deploy/README.md](/Users/oric/git/palate/deploy/README.md).
 
 ## Example MCP Config
 

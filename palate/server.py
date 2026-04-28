@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Literal
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .core import build_grounding, rank_candidates, retrieve_candidates
 from .llm import explain_results, extract_entities, normalize_enrichment, parse_intent
@@ -14,7 +16,27 @@ from .storage import open_store
 load_dotenv()
 
 store = open_store()
-mcp = FastMCP("palate")
+mcp = FastMCP(
+    "palate",
+    host=os.getenv("PALATE_HOST", "127.0.0.1"),
+    port=int(os.getenv("PALATE_PORT", "8000")),
+    streamable_http_path=os.getenv("PALATE_MCP_PATH", "/mcp"),
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=[
+            host
+            for host in os.getenv(
+                "PALATE_ALLOWED_HOSTS",
+                "127.0.0.1,127.0.0.1:8000,localhost,localhost:8000",
+            ).split(",")
+            if host
+        ],
+        allowed_origins=[
+            origin
+            for origin in os.getenv("PALATE_ALLOWED_ORIGINS", "").split(",")
+            if origin
+        ],
+    ),
+)
 EntityType = Literal["wine", "restaurant", "music", "cigar", "experience"]
 
 
@@ -218,7 +240,10 @@ def describe_retrieval(retrieval: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
-    mcp.run()
+    transport = os.getenv("PALATE_TRANSPORT", "stdio")
+    if transport not in {"stdio", "sse", "streamable-http"}:
+        raise ValueError("PALATE_TRANSPORT must be one of: stdio, sse, streamable-http")
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

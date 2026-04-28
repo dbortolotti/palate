@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.palate.mcp</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+    <string>-m</string>
+    <string>palate.server</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/oric/git/palate</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PALATE_TRANSPORT</key>
+    <string>streamable-http</string>
+    <key>PALATE_HOST</key>
+    <string>127.0.0.1</string>
+    <key>PALATE_PORT</key>
+    <string>8787</string>
+    <key>PALATE_MCP_PATH</key>
+    <string>/mcp</string>
+    <key>PALATE_DB_PATH</key>
+    <string>/Users/oric/git/palate/data/palate.sqlite</string>
+    <key>PALATE_ALLOWED_HOSTS</key>
+    <string>127.0.0.1,127.0.0.1:8787,localhost,localhost:8787,modal.tail63a6b7.ts.net</string>
+    <key>PALATE_ALLOWED_ORIGINS</key>
+    <string>https://modal.tail63a6b7.ts.net</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/oric/git/palate/logs/palate.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/oric/git/palate/logs/palate.err.log</string>
+</dict>
+</plist>
