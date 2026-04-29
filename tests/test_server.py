@@ -40,6 +40,26 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["sqlite"], "a.sqlite")
         self.assertEqual(result["json"], "a.json")
 
+    def test_how_to_tool_returns_user_guide_markdown(self) -> None:
+        guide_path = self.temp_dir / "USER-GUIDE.md"
+        guide_path.write_text("# Palate User Guide\n\nUse Palate for this.\n", encoding="utf-8")
+
+        with patch.object(server, "USER_GUIDE_PATH", guide_path):
+            result = server.palate_how_to()
+
+        self.assertEqual(result["title"], "Palate User Guide")
+        self.assertEqual(result["mime_type"], "text/markdown")
+        self.assertIn("Use Palate for this.", result["content"])
+
+    def test_how_to_resource_returns_user_guide_markdown(self) -> None:
+        guide_path = self.temp_dir / "USER-GUIDE.md"
+        guide_path.write_text("# Palate User Guide\n\nConnector instructions.\n", encoding="utf-8")
+
+        with patch.object(server, "USER_GUIDE_PATH", guide_path):
+            result = server.palate_how_to_resource()
+
+        self.assertIn("Connector instructions.", result)
+
     def test_evaluate_options_reports_unmatched_without_substituting_memory(self) -> None:
         with patch.object(server, "parse_intent", return_value=base_intent(entity_type="wine")), \
              patch.object(server, "extract_entities", return_value={

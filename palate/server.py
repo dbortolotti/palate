@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -45,6 +46,29 @@ mcp = FastMCP(
 if auth_provider:
     register_auth_routes(mcp, auth_provider)
 EntityType = Literal["wine", "restaurant", "music", "cigar", "experience"]
+USER_GUIDE_PATH = Path(__file__).resolve().parents[1] / "USER-GUIDE.md"
+
+
+@mcp.tool()
+def palate_how_to() -> dict[str, Any]:
+    """Return the Palate user guide with prompt patterns for client LLMs."""
+    return {
+        "title": "Palate User Guide",
+        "mime_type": "text/markdown",
+        "content": read_user_guide(),
+    }
+
+
+@mcp.resource(
+    "palate://how-to",
+    name="palate_how_to",
+    title="Palate User Guide",
+    description="How to prompt a client LLM to use Palate's supported tasks.",
+    mime_type="text/markdown",
+)
+def palate_how_to_resource() -> str:
+    """Expose the Palate user guide as an MCP resource."""
+    return read_user_guide()
 
 
 @mcp.tool()
@@ -250,6 +274,10 @@ def describe_retrieval(retrieval: dict[str, Any]) -> dict[str, Any]:
             for entity in retrieval["candidates"]
         ],
     }
+
+
+def read_user_guide() -> str:
+    return USER_GUIDE_PATH.read_text(encoding="utf-8")
 
 
 def main() -> None:

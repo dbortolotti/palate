@@ -59,6 +59,9 @@ python3 -m unittest discover -s tests
 - `palate_enrich_item`: normalize noisy text into the fixed attribute schema
 - `palate_log_decision`: record what the user chose
 - `palate_backup_now`: create an immediate SQLite and JSON backup
+- `palate_how_to`: return the user guide and prompt patterns for client LLMs
+
+The same guide is also exposed as the MCP resource `palate://how-to`.
 
 Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
 
