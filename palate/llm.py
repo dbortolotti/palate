@@ -9,7 +9,7 @@ from openai import OpenAI
 from .schema import ATTRIBUTE_KEYS, ENTITY_TYPES, INTENTS
 
 
-MODEL = os.getenv("PALATE_MODEL", "gpt-5.5")
+MODEL = os.getenv("PALATE_MODEL", "gpt-5.4-nano")
 
 
 def client() -> OpenAI:

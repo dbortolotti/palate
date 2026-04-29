@@ -5,6 +5,8 @@ __pycache__/
 .venv/
 *.egg-info/
 logs/*.log
+backups/
 data/*.sqlite
 data/*.sqlite-*
 .env
+secrets/

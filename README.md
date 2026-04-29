@@ -58,12 +58,93 @@ python3 -m unittest discover -s tests
 - `palate_recall`: recall matching explicit memory
 - `palate_enrich_item`: normalize noisy text into the fixed attribute schema
 - `palate_log_decision`: record what the user chose
+- `palate_backup_now`: create an immediate SQLite and JSON backup
 
 Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
 
 ## Deployment
 
-This repo includes a macOS LaunchAgent template and Tailscale Serve notes in [deploy/README.md](/Users/oric/git/palate/deploy/README.md).
+This repo includes a macOS LaunchAgent template and Tailscale Funnel notes in [deploy/README.md](/Users/oric/git/palate/deploy/README.md).
+
+## MCP Auth
+
+When `PALATE_AUTH_ENABLED=1`, Palate exposes an OAuth 2.1 flow for remote MCP
+clients such as ChatGPT. The public connector URL is:
+
+```text
+https://modal.tail63a6b7.ts.net/palate/mcp
+```
+
+The first connection opens a Palate login page. The password is read from:
+
+```text
+/Users/oric/git/palate/secrets/palate-auth-password
+```
+
+OAuth client registrations and issued tokens are stored in:
+
+```text
+/Users/oric/git/palate/secrets/palate-oauth.json
+```
+
+Both files are under `secrets/`, which is ignored by git.
+
+## Backups
+
+The server can create a SQLite snapshot and a JSON export once per day while
+running. Configure:
+
+```sh
+PALATE_BACKUP_ENABLED=1
+PALATE_BACKUP_DIR=./backups
+PALATE_BACKUP_RETENTION_DAYS=31
+PALATE_BACKUP_INTERVAL_SECONDS=86400
+```
+
+If you use Google Drive Desktop sync instead of the API integration below,
+point `PALATE_BACKUP_DIR` at a Drive-synced folder. Keep the live SQLite
+database outside Google Drive; only sync timestamped snapshots.
+
+### Google Drive API Backups
+
+Palate can also upload the timestamped `.sqlite` and `.json` backup files
+directly through the Google Drive API.
+
+One-time setup:
+
+1. Create or choose a Google Cloud project.
+2. Enable the Google Drive API.
+3. Create an OAuth client for a Desktop app.
+4. Save the downloaded client JSON as:
+
+```text
+/Users/oric/git/palate/secrets/google-oauth-client.json
+```
+
+5. Authorize once from a normal user session:
+
+```sh
+python3 -m palate.google_drive
+```
+
+This opens a browser, stores a refresh token in:
+
+```text
+/Users/oric/git/palate/secrets/google-token.json
+```
+
+and creates or reuses the Drive folder path `backup/palate`.
+
+Then enable Drive upload in the LaunchAgent by setting:
+
+```text
+PALATE_BACKUP_GOOGLE_DRIVE_ENABLED=1
+```
+
+and restart the service.
+
+The Google Drive integration uses the limited `drive.file` OAuth scope, so it
+only manages files/folders created by this app or explicitly selected for it.
 
 ## Example MCP Config
 
@@ -75,9 +156,9 @@ This repo includes a macOS LaunchAgent template and Tailscale Serve notes in [de
       "args": ["-m", "palate.server"],
       "cwd": "/Users/oric/git/palate",
       "env": {
-        "OPENAI_API_KEY": "sk-...",
+        "OPENAI_API_KEY": "your-openai-api-key",
         "PALATE_DB_PATH": "./data/palate.sqlite",
-        "PALATE_MODEL": "gpt-5.5"
+        "PALATE_MODEL": "gpt-5.4-nano"
       }
     }
   }

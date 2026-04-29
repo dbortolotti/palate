@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .backup import backup_once, start_backup_scheduler
 from .core import build_grounding, rank_candidates, retrieve_candidates
 from .llm import explain_results, extract_entities, normalize_enrichment, parse_intent
+from .oauth import build_auth_components, register_auth_routes
 from .schema import ENTITY_TYPES
 from .storage import open_store
 
@@ -16,8 +18,11 @@ from .storage import open_store
 load_dotenv()
 
 store = open_store()
+auth_settings, auth_provider = build_auth_components()
 mcp = FastMCP(
     "palate",
+    auth=auth_settings,
+    auth_server_provider=auth_provider,
     host=os.getenv("PALATE_HOST", "127.0.0.1"),
     port=int(os.getenv("PALATE_PORT", "8000")),
     streamable_http_path=os.getenv("PALATE_MCP_PATH", "/mcp"),
@@ -37,7 +42,15 @@ mcp = FastMCP(
         ],
     ),
 )
+if auth_provider:
+    register_auth_routes(mcp, auth_provider)
 EntityType = Literal["wine", "restaurant", "music", "cigar", "experience"]
+
+
+@mcp.tool()
+def palate_backup_now() -> dict[str, Any]:
+    """Create an immediate SQLite and JSON backup, then clean up expired backups."""
+    return backup_once()
 
 
 @mcp.tool()
@@ -243,6 +256,7 @@ def main() -> None:
     transport = os.getenv("PALATE_TRANSPORT", "stdio")
     if transport not in {"stdio", "sse", "streamable-http"}:
         raise ValueError("PALATE_TRANSPORT must be one of: stdio, sse, streamable-http")
+    start_backup_scheduler()
     mcp.run(transport=transport)
 
 

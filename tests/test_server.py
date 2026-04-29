@@ -33,6 +33,13 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertFalse(result["retrieval"]["constrained_to_options"])
 
+    def test_backup_now_returns_snapshot_paths(self) -> None:
+        with patch.object(server, "backup_once", return_value={"sqlite": "a.sqlite", "json": "a.json", "removed": []}):
+            result = server.palate_backup_now()
+
+        self.assertEqual(result["sqlite"], "a.sqlite")
+        self.assertEqual(result["json"], "a.json")
+
     def test_evaluate_options_reports_unmatched_without_substituting_memory(self) -> None:
         with patch.object(server, "parse_intent", return_value=base_intent(entity_type="wine")), \
              patch.object(server, "extract_entities", return_value={
