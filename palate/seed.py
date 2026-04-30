@@ -118,9 +118,10 @@ ITEMS = [
             "ratings_source": {"provider": "omdb", "fetched_at": None},
         },
         "attributes": {
-            "intensity": 0.9,
+            "intense": 0.9,
             "classic": 0.82,
-            "intellectual": 0.68,
+            "cerebral": 0.68,
+            "action": 0.74,
         },
         "signals": [
             {"type": "rating", "value": 5},
@@ -148,8 +149,9 @@ ITEMS = [
             "ratings_source": {"provider": "omdb", "fetched_at": None},
         },
         "attributes": {
-            "quiet": 0.72,
-            "intellectual": 0.92,
+            "slow_burn": 0.72,
+            "cerebral": 0.92,
+            "dark": 0.76,
             "novelty": 0.84,
         },
         "signals": [

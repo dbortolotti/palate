@@ -134,18 +134,25 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual({signal["type"] for signal in stored["signals"]}, {"rating", "recommended_by"})
 
     def test_remember_accepts_movie_and_series_types(self) -> None:
-        movie_result = server.palate_remember(
-            id="movie_ok",
-            type="movie",
-            canonical_name="Movie OK",
-            fetch_external_ratings=False,
-        )
-        series_result = server.palate_remember(
-            id="series_ok",
-            type="series",
-            canonical_name="Series OK",
-            fetch_external_ratings=False,
-        )
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            movie_result = server.palate_remember(
+                id="movie_ok",
+                type="movie",
+                canonical_name="Movie OK",
+                description="A movie to watch.",
+                fetch_external_ratings=False,
+            )
+            series_result = server.palate_remember(
+                id="series_ok",
+                type="series",
+                canonical_name="Series OK",
+                description="A series to watch.",
+                fetch_external_ratings=False,
+            )
 
         self.assertTrue(movie_result["stored"])
         self.assertTrue(series_result["stored"])
@@ -155,19 +162,25 @@ class ServerToolBehaviorTest(unittest.TestCase):
         )
 
     def test_remember_stores_media_metadata_and_rating_marks_watched(self) -> None:
-        server.palate_remember(
-            id="movie_meta",
-            type="movie",
-            canonical_name="Manual Movie",
-            rating=4,
-            synopsis="A precise thriller.",
-            main_actors=["Actor One", "Actor Two"],
-            director="Director One",
-            country="United Kingdom",
-            genre=["Thriller"],
-            imdb_id="tt7654321",
-            fetch_external_ratings=False,
-        )
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            server.palate_remember(
+                id="movie_meta",
+                type="movie",
+                canonical_name="Manual Movie",
+                description="A precise thriller.",
+                rating=4,
+                synopsis="A precise thriller.",
+                main_actors=["Actor One", "Actor Two"],
+                director="Director One",
+                country="United Kingdom",
+                genre=["Thriller"],
+                imdb_id="tt7654321",
+                fetch_external_ratings=False,
+            )
 
         stored = next(entity for entity in self.store.list_entities() if entity["id"] == "movie_meta")
 
@@ -180,11 +193,16 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(stored["metadata"]["external_ids"]["imdb_id"], "tt7654321")
 
     def test_remember_warns_when_omdb_key_is_missing(self) -> None:
-        with patch.dict("os.environ", {"OMDB_API_KEY": ""}):
+        with patch.dict("os.environ", {"OMDB_API_KEY": ""}), patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
             result = server.palate_remember(
                 id="movie_no_key",
                 type="movie",
                 canonical_name="No Key Movie",
+                description="A movie with no key available.",
             )
 
         self.assertTrue(result["stored"])
@@ -207,11 +225,16 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 },
                 "warnings": [],
             },
+        ), patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
         ):
             server.palate_remember(
                 id="movie_omdb",
                 type="movie",
                 canonical_name="OMDb Movie",
+                description="A movie with OMDb metadata.",
                 director="Manual Director",
             )
 
@@ -259,7 +282,32 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 id="bad",
                 type="book",
                 canonical_name="Bad Type",
+                description="Invalid type.",
             )
+
+    def test_remember_rejects_blank_description_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError):
+                server.palate_remember(
+                    id="movie_blank",
+                    type="movie",
+                    canonical_name="Blank Description",
+                    description="   ",
+                )
+
+    def test_remember_rejects_attributes_not_valid_for_type_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as caught:
+                server.palate_remember(
+                    id="movie_oak",
+                    type="movie",
+                    canonical_name="Oaky Movie",
+                    description="A movie that should not accept wine attributes.",
+                    attributes={"oak": 0.7},
+                )
+
+        self.assertIn("attributes for movie", str(caught.exception))
+        self.assertIn("oak", str(caught.exception))
 
     def test_log_decision_updates_existing_decision(self) -> None:
         decision_id = self.store.log_decision("which wine", {}, [], [])

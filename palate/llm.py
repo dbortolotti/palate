@@ -6,7 +6,13 @@ from typing import Any
 
 from openai import OpenAI
 
-from .schema import ATTRIBUTE_KEYS, ENTITY_TYPES, INTENTS
+from .schema import (
+    ATTRIBUTE_KEYS,
+    ATTRIBUTE_KEYS_BY_TYPE,
+    ENTITY_TYPES,
+    INTENTS,
+    attribute_keys_for_type,
+)
 
 
 MODEL = os.getenv("PALATE_MODEL", "gpt-5.4-nano")
@@ -19,13 +25,15 @@ def client() -> OpenAI:
 
 
 def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    return json_response(
+    intent = json_response(
         name="palate_intent",
         instructions=" ".join(
             [
                 "You translate ambiguous taste requests into Palate's fixed intent schema.",
                 "Do not rank or recommend anything.",
                 "Use only predefined attributes and entity types.",
+                "Attributes are scoped by entity type.",
+                "If entity_type is known, use only attributes allowed for that entity type.",
                 "If uncertain, leave fields empty or set intent to fuzzy_recall.",
             ]
         ),
@@ -33,6 +41,7 @@ def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str,
             "query": query,
             "context": context or {},
             "allowed_attributes": ATTRIBUTE_KEYS,
+            "allowed_attributes_by_type": ATTRIBUTE_KEYS_BY_TYPE,
             "allowed_entity_types": ENTITY_TYPES,
             "allowed_intents": INTENTS,
         },
@@ -79,6 +88,7 @@ def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str,
             },
         },
     )
+    return filter_intent_attributes(intent)
 
 
 def extract_entities(text: str, expected_type: str | None = None) -> dict[str, Any]:
@@ -120,11 +130,12 @@ def extract_entities(text: str, expected_type: str | None = None) -> dict[str, A
 
 
 def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
+    allowed_attributes = attribute_keys_for_type(entity_type)
     return json_response(
         name="palate_enrichment",
         instructions=" ".join(
             [
-                "Normalize noisy descriptive text into Palate's fixed attribute schema.",
+                "Normalize noisy descriptive text into Palate's fixed attribute schema for the given entity type.",
                 "Never invent new attribute keys.",
                 "Each value must be in [0, 1]. Use 0 when not evidenced.",
                 "For movie or series items, extract only explicitly evidenced media metadata.",
@@ -134,7 +145,8 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
         payload={
             "item_text": item_text,
             "entity_type": entity_type,
-            "allowed_attributes": ATTRIBUTE_KEYS,
+            "allowed_attributes": allowed_attributes,
+            "allowed_attributes_by_type": ATTRIBUTE_KEYS_BY_TYPE,
         },
         schema={
             "type": "object",
@@ -144,10 +156,10 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "attributes": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ATTRIBUTE_KEYS,
+                    "required": allowed_attributes,
                     "properties": {
                         key: {"type": "number", "minimum": 0, "maximum": 1}
-                        for key in ATTRIBUTE_KEYS
+                        for key in allowed_attributes
                     },
                 },
                 "notes": {"type": "string"},
@@ -190,6 +202,21 @@ def explain_results(
         text={"verbosity": "low"},
     )
     return response.output_text.strip()
+
+
+def filter_intent_attributes(intent: dict[str, Any]) -> dict[str, Any]:
+    allowed = set(attribute_keys_for_type(intent.get("entity_type")))
+    intent["attributes"] = [
+        attribute
+        for attribute in intent.get("attributes") or []
+        if attribute in allowed
+    ]
+    intent["context"] = {
+        key: bool(value)
+        for key, value in (intent.get("context") or {}).items()
+        if key in allowed and value
+    }
+    return intent
 
 
 def json_response(

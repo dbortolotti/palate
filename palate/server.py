@@ -19,7 +19,7 @@ from .media import (
 )
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
-from .schema import ENTITY_TYPES
+from .schema import ENTITY_TYPES, attribute_keys_for_type, invalid_attribute_keys
 from .storage import open_store
 
 
@@ -171,7 +171,7 @@ def palate_remember(
     id: str,
     type: EntityType,
     canonical_name: str,
-    description: str | None = None,
+    description: str,
     attributes: dict[str, float] | None = None,
     rating: float | None = None,
     recommended_by: str | None = None,
@@ -186,15 +186,27 @@ def palate_remember(
     imdb_id: str | None = None,
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
-    """Store an explicit Palate memory and optionally normalize raw description text."""
+    """Store an explicit Palate memory and normalize required description text."""
     if type not in ENTITY_TYPES:
         raise ValueError(f"type must be one of: {', '.join(ENTITY_TYPES)}")
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError("description is required and must not be blank.")
+    description = description.strip()
+    invalid_attributes = invalid_attribute_keys(type, attributes)
+    if invalid_attributes:
+        allowed = ", ".join(attribute_keys_for_type(type))
+        invalid = ", ".join(invalid_attributes)
+        raise ValueError(
+            f"attributes for {type} must be one of: {allowed}. Invalid: {invalid}"
+        )
 
-    enrichment = (
-        normalize_enrichment(description, type)
-        if description
-        else {"attributes": {}, "notes": "", "metadata": {}}
-    )
+    enrichment = normalize_enrichment(description, type)
+    allowed_attributes = set(attribute_keys_for_type(type))
+    normalized_attributes = {
+        key: value
+        for key, value in enrichment["attributes"].items()
+        if key in allowed_attributes
+    }
     metadata, metadata_warnings = prepare_media_metadata(
         entity_type=type,
         canonical_name=canonical_name,
@@ -225,7 +237,7 @@ def palate_remember(
             "source_text": description,
             "notes": notes if notes is not None else enrichment["notes"],
             "metadata": metadata,
-            "attributes": {**enrichment["attributes"], **(attributes or {})},
+            "attributes": {**normalized_attributes, **(attributes or {})},
             "signals": signals,
         }
     )
@@ -233,7 +245,7 @@ def palate_remember(
     return {
         "stored": True,
         "id": id,
-        "normalized_attributes": enrichment["attributes"],
+        "normalized_attributes": normalized_attributes,
         "metadata": metadata,
         "warnings": metadata_warnings,
     }

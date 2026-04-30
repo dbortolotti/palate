@@ -52,25 +52,28 @@ Palate currently supports these entity types:
 - `movie`
 - `series`
 
-It understands these fixed taste attributes:
+It understands different fixed taste attributes for each entity type:
 
-- `oak`
-- `premium`
-- `richness`
-- `intensity`
-- `quiet`
-- `lively`
-- `intellectual`
-- `indulgent`
-- `novelty`
-- `comfort`
-- `view`
-- `classic`
-- `casual`
+- `wine`: `oak`, `premium`, `richness`, `intensity`, `classic`, `indulgent`,
+  `novelty`, `comfort`
+- `restaurant`: `premium`, `quiet`, `lively`, `indulgent`, `novelty`,
+  `comfort`, `view`, `classic`, `casual`
+- `music`: `quiet`, `lively`, `intellectual`, `comfort`, `classic`,
+  `novelty`, `intensity`, `indulgent`
+- `cigar`: `premium`, `richness`, `intensity`, `classic`, `indulgent`,
+  `novelty`, `comfort`
+- `experience`: `premium`, `intensity`, `quiet`, `lively`, `intellectual`,
+  `indulgent`, `novelty`, `comfort`, `view`, `classic`, `casual`
+- `movie`: `intense`, `suspenseful`, `cerebral`, `emotional`, `funny`,
+  `dark`, `light`, `slow_burn`, `action`, `comfort`, `novelty`, `classic`
+- `series`: `intense`, `suspenseful`, `cerebral`, `emotional`, `funny`,
+  `dark`, `light`, `slow_burn`, `serialized`, `comfort`, `novelty`,
+  `classic`
 
 You can use natural language. For example, "a fancy oaky wine" can map to
-`premium` and `oak`; "somewhere low-key with a view" can map to `quiet` and
-`view`.
+wine `premium` and `oak`; "somewhere low-key with a view" can map to
+restaurant `quiet` and `view`; "a tense cerebral film" can map to movie
+`suspenseful` and `cerebral`.
 
 Movies and series can also store structured metadata:
 
@@ -147,7 +150,7 @@ Noble Rot
 ```
 
 ```text
-Use Palate. Which of these movies best fits a quiet, intellectual evening?
+Use Palate. Which of these movies best fits a slow-burn, cerebral evening?
 
 Heat
 Inception
@@ -195,13 +198,14 @@ heavy for me, intense, not a good fit for low-energy evenings.
 Use Palate to remember this watched movie:
 Name: Heat
 Type: movie
+Description: intense, precise, classic Los Angeles crime film
 Rating: 5/5
 Watched: true
 Director: Michael Mann
 Main actors: Al Pacino, Robert De Niro, Val Kilmer
 Genre: crime, drama, thriller
 IMDb ID: tt0113277
-Notes: intense, precise, classic Los Angeles crime film.
+Notes: loved the structure and atmosphere.
 ```
 
 ```text
@@ -214,6 +218,7 @@ Best practice:
 
 - Give the canonical name.
 - Give the entity type.
+- Give a description. Palate requires this for every new memory.
 - Include a rating if you have one.
 - Include who recommended it, if relevant.
 - Include concrete notes. Palate can normalize those notes into its fixed
@@ -393,6 +398,7 @@ are unknown to Palate, list them as unmatched.
 Use Palate to remember:
 Name:
 Type:
+Description:
 Rating:
 Recommended by:
 Notes:
@@ -529,7 +535,7 @@ Use Palate. What was that place with the city view I saved?
 ```
 
 ```text
-Use Palate. Evaluate this series shortlist for something quiet and intellectual:
+Use Palate. Evaluate this series shortlist for something slow-burn and cerebral:
 
 Severance
 Slow Horses
