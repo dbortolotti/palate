@@ -97,6 +97,65 @@ ITEMS = [
             {"type": "recommended_by", "value": "Alex"},
         ],
     },
+    {
+        "id": "movie_heat_1995",
+        "type": "movie",
+        "canonical_name": "Heat",
+        "notes": "Precise, intense crime film with classic Los Angeles atmosphere.",
+        "metadata": {
+            "synopsis": "A career criminal and a driven detective move toward a collision in Los Angeles.",
+            "main_actors": ["Al Pacino", "Robert De Niro", "Val Kilmer"],
+            "director": "Michael Mann",
+            "country": "United States",
+            "genre": ["Crime", "Drama", "Thriller"],
+            "watched": True,
+            "watched_at": None,
+            "external_ids": {"imdb_id": "tt0113277"},
+            "external_ratings": {
+                "imdb": {"rating": 8.3, "votes": 740000},
+                "rotten_tomatoes": {"critic_score": 83},
+            },
+            "ratings_source": {"provider": "omdb", "fetched_at": None},
+        },
+        "attributes": {
+            "intensity": 0.9,
+            "classic": 0.82,
+            "intellectual": 0.68,
+        },
+        "signals": [
+            {"type": "rating", "value": 5},
+            {"type": "tried", "value": True},
+        ],
+    },
+    {
+        "id": "series_severance",
+        "type": "series",
+        "canonical_name": "Severance",
+        "notes": "Quietly unsettling, intellectual workplace mystery.",
+        "metadata": {
+            "synopsis": "Office workers separate their work and personal memories and uncover a deeper conspiracy.",
+            "main_actors": ["Adam Scott", "Britt Lower", "Patricia Arquette"],
+            "director": "Ben Stiller",
+            "country": "United States",
+            "genre": ["Drama", "Mystery", "Sci-Fi"],
+            "watched": False,
+            "watched_at": None,
+            "external_ids": {"imdb_id": "tt11280740"},
+            "external_ratings": {
+                "imdb": {"rating": 8.7, "votes": 250000},
+                "rotten_tomatoes": {"critic_score": 97},
+            },
+            "ratings_source": {"provider": "omdb", "fetched_at": None},
+        },
+        "attributes": {
+            "quiet": 0.72,
+            "intellectual": 0.92,
+            "novelty": 0.84,
+        },
+        "signals": [
+            {"type": "saved", "value": True},
+        ],
+    },
 ]
 
 

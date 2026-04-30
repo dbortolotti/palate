@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .media import external_rating_facts, external_rating_tiebreak, metadata_search_text
+
 
 def retrieve_candidates(
     store: Any,
@@ -52,7 +54,14 @@ def rank_candidates(candidates: list[dict[str, Any]], intent: dict[str, Any]) ->
         if not facts["excluded"]:
             results.append({"entity": entity, "score": facts["total"], "facts": facts})
 
-    return sorted(results, key=lambda result: result["score"], reverse=True)
+    return sorted(
+        results,
+        key=lambda result: (
+            result["score"],
+            result["facts"].get("external_rating_tiebreak", 0.0),
+        ),
+        reverse=True,
+    )
 
 
 def score_entity(
@@ -71,6 +80,7 @@ def score_entity(
         "search_match": 0.0,
         "provenance": 0.0,
         "familiarity": 0.0,
+        "external_rating_tiebreak": 0.0,
         "penalties": 0.0,
         "matched_attributes": [],
         "negative_signals": [],
@@ -136,6 +146,12 @@ def score_entity(
     if facts["search_match"] > 0:
         facts["signal_facts"].append(f"matched memory text: {facts['search_match']:.2f}")
 
+    rating_facts = external_rating_facts(entity.get("metadata") or {})
+    facts["signal_facts"].extend(rating_facts)
+    facts["external_rating_tiebreak"] = external_rating_tiebreak(
+        entity.get("metadata") or {}
+    )
+
     facts["total"] = round(
         facts["preference"] * 1.4
         + facts["attribute_match"]
@@ -159,6 +175,7 @@ def build_grounding(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "matched_attributes": result["facts"]["matched_attributes"],
             "signal_facts": result["facts"]["signal_facts"],
             "negative_signals": result["facts"]["negative_signals"],
+            "metadata": result["entity"].get("metadata") or {},
         }
         for result in results[:5]
     ]
@@ -199,6 +216,7 @@ def score_text_match(entity: dict[str, Any], search_text: str) -> float:
                 entity.get("canonical_name"),
                 entity.get("source_text"),
                 entity.get("notes"),
+                metadata_search_text(entity.get("metadata") or {}),
                 attributes,
                 signals,
             ]

@@ -17,8 +17,8 @@ Use this as a custom instruction, project instruction, or first message in a
 thread where Palate is available:
 
 ```text
-When I ask about wine, restaurants, music, cigars, or experiences, use the
-Palate connector instead of relying on chat memory alone.
+When I ask about wine, restaurants, music, cigars, experiences, movies, or
+series, use the Palate connector instead of relying on chat memory alone.
 
 Use Palate to:
 - remember explicit preferences, ratings, notes, and recommendations
@@ -48,6 +48,8 @@ Palate currently supports these entity types:
 - `music`
 - `cigar`
 - `experience`
+- `movie`
+- `series`
 
 It understands these fixed taste attributes:
 
@@ -68,6 +70,21 @@ It understands these fixed taste attributes:
 You can use natural language. For example, "a fancy oaky wine" can map to
 `premium` and `oak`; "somewhere low-key with a view" can map to `quiet` and
 `view`.
+
+Movies and series can also store structured metadata:
+
+- synopsis
+- main actors
+- director
+- country
+- genre
+- watched status and watched date
+- IMDb ID
+- external IMDb and Rotten Tomatoes critic ratings from OMDb
+
+Your own 1-5 `rating` remains the personal taste signal. IMDb and Rotten
+Tomatoes are stored as external reference data and only break ties between
+otherwise similar Palate matches.
 
 ## Supported Tasks
 
@@ -107,8 +124,8 @@ an indulgent evening.
 
 ### Evaluate A Pasted Option Set
 
-Use this for a wine list, menu, restaurant shortlist, album choices, cigar list,
-or any bounded set of options.
+Use this for a wine list, menu, restaurant shortlist, album choices, movie or
+series shortlist, cigar list, or any bounded set of options.
 
 Good prompts:
 
@@ -126,6 +143,14 @@ Use Palate. Which of these restaurants best fits a quiet dinner with a view?
 Skyline Room
 Loud Counter
 Noble Rot
+```
+
+```text
+Use Palate. Which of these movies best fits a quiet, intellectual evening?
+
+Heat
+Inception
+Tinker Tailor Soldier Spy
 ```
 
 Important behavior:
@@ -165,6 +190,25 @@ Use Palate to remember Alex's Syrah as a wine with rating 2/5. Notes: too
 heavy for me, intense, not a good fit for low-energy evenings.
 ```
 
+```text
+Use Palate to remember this watched movie:
+Name: Heat
+Type: movie
+Rating: 5/5
+Watched: true
+Director: Michael Mann
+Main actors: Al Pacino, Robert De Niro, Val Kilmer
+Genre: crime, drama, thriller
+IMDb ID: tt0113277
+Notes: intense, precise, classic Los Angeles crime film.
+```
+
+```text
+Use Palate to remember Severance as an unwatched series. Fetch IMDb and Rotten
+Tomatoes ratings if available. Notes: quiet, intellectual, unsettling workplace
+mystery.
+```
+
 Best practice:
 
 - Give the canonical name.
@@ -173,6 +217,9 @@ Best practice:
 - Include who recommended it, if relevant.
 - Include concrete notes. Palate can normalize those notes into its fixed
   attributes.
+- For movies and series, include watched status and your own rating when you
+  have seen it. If you provide your own rating, Palate marks the item as
+  watched.
 
 The client LLM may create a stable internal ID for the item. If you want to be
 explicit, you can provide one:
@@ -198,6 +245,18 @@ Use Palate to recall the wine Mike suggested that had cedar notes.
 
 ```text
 Use Palate. Find the music I saved that felt intellectual but comforting.
+```
+
+```text
+Use Palate. What movie did I save with Robert De Niro and Michael Mann?
+```
+
+```text
+Use Palate. Recall the British spy film I saved.
+```
+
+```text
+Use Palate. Find series I saved in the mystery or sci-fi genre.
 ```
 
 Helpful details:
@@ -379,6 +438,8 @@ Palate responses usually include:
 - `ranked_results`: the top grounded results
 - `matched_attributes`: attributes that contributed to the ranking
 - `signal_facts`: ratings, recommendations, saved/tried signals, or text matches
+- `metadata`: movie and series synopsis, cast, director, genre, watched status,
+  IMDb ID, and external ratings when stored
 - `negative_signals`: reasons an item was penalized or excluded
 - `unmatched_options`: pasted options that Palate could not match to memory
 
@@ -438,6 +499,14 @@ good wine list, not too lively.
 
 ```text
 Use Palate. What was that place with the city view I saved?
+```
+
+```text
+Use Palate. Evaluate this series shortlist for something quiet and intellectual:
+
+Severance
+Slow Horses
+The Bear
 ```
 
 ```text

@@ -11,7 +11,14 @@ from mcp.server.transport_security import TransportSecuritySettings
 from .backup import backup_once, start_backup_scheduler
 from .core import build_grounding, rank_candidates, retrieve_candidates
 from .llm import explain_results, extract_entities, normalize_enrichment, parse_intent
+from .media import (
+    is_media_type,
+    merge_media_metadata,
+    normalize_media_metadata,
+    set_media_field,
+)
 from .oauth import build_auth_components, register_auth_routes
+from .omdb import fetch_omdb_metadata
 from .schema import ENTITY_TYPES
 from .storage import open_store
 
@@ -45,7 +52,15 @@ mcp = FastMCP(
 )
 if auth_provider:
     register_auth_routes(mcp, auth_provider)
-EntityType = Literal["wine", "restaurant", "music", "cigar", "experience"]
+EntityType = Literal[
+    "wine",
+    "restaurant",
+    "music",
+    "cigar",
+    "experience",
+    "movie",
+    "series",
+]
 USER_GUIDE_PATH = Path(__file__).resolve().parents[1] / "USER-GUIDE.md"
 
 
@@ -161,6 +176,15 @@ def palate_remember(
     rating: float | None = None,
     recommended_by: str | None = None,
     notes: str | None = None,
+    synopsis: str | None = None,
+    main_actors: list[str] | None = None,
+    director: str | None = None,
+    country: str | None = None,
+    genre: list[str] | None = None,
+    watched: bool | None = None,
+    watched_at: str | None = None,
+    imdb_id: str | None = None,
+    fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
     """Store an explicit Palate memory and optionally normalize raw description text."""
     if type not in ENTITY_TYPES:
@@ -169,7 +193,22 @@ def palate_remember(
     enrichment = (
         normalize_enrichment(description, type)
         if description
-        else {"attributes": {}, "notes": ""}
+        else {"attributes": {}, "notes": "", "metadata": {}}
+    )
+    metadata, metadata_warnings = prepare_media_metadata(
+        entity_type=type,
+        canonical_name=canonical_name,
+        enrichment_metadata=enrichment.get("metadata") or {},
+        rating=rating,
+        synopsis=synopsis,
+        main_actors=main_actors,
+        director=director,
+        country=country,
+        genre=genre,
+        watched=watched,
+        watched_at=watched_at,
+        imdb_id=imdb_id,
+        fetch_external_ratings=fetch_external_ratings,
     )
 
     signals = []
@@ -185,6 +224,7 @@ def palate_remember(
             "canonical_name": canonical_name,
             "source_text": description,
             "notes": notes if notes is not None else enrichment["notes"],
+            "metadata": metadata,
             "attributes": {**enrichment["attributes"], **(attributes or {})},
             "signals": signals,
         }
@@ -194,6 +234,8 @@ def palate_remember(
         "stored": True,
         "id": id,
         "normalized_attributes": enrichment["attributes"],
+        "metadata": metadata,
+        "warnings": metadata_warnings,
     }
 
 
@@ -258,6 +300,69 @@ def palate_log_decision(
         "chosen_entity_id": chosen_entity_id,
         "updated_existing_decision": updated_existing_decision,
     }
+
+
+def prepare_media_metadata(
+    *,
+    entity_type: str,
+    canonical_name: str,
+    enrichment_metadata: dict[str, Any],
+    rating: float | None,
+    synopsis: str | None,
+    main_actors: list[str] | None,
+    director: str | None,
+    country: str | None,
+    genre: list[str] | None,
+    watched: bool | None,
+    watched_at: str | None,
+    imdb_id: str | None,
+    fetch_external_ratings: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    if not is_media_type(entity_type):
+        return {}, []
+
+    metadata = normalize_media_metadata(enrichment_metadata)
+    manual_paths: set[tuple[str, ...]] = set()
+
+    def apply_manual(path: tuple[str, ...], value: Any) -> None:
+        nonlocal metadata
+        if value is None:
+            return
+        metadata = set_media_field(metadata, path, value)
+        manual_paths.add(path)
+
+    apply_manual(("synopsis",), synopsis)
+    apply_manual(("main_actors",), main_actors)
+    apply_manual(("director",), director)
+    apply_manual(("country",), country)
+    apply_manual(("genre",), genre)
+    apply_manual(("watched",), watched)
+    apply_manual(("watched_at",), watched_at)
+    apply_manual(("external_ids", "imdb_id"), imdb_id)
+
+    if watched_at is not None and watched is None:
+        metadata = set_media_field(metadata, ("watched",), True)
+        manual_paths.add(("watched",))
+
+    if rating is not None:
+        metadata = set_media_field(metadata, ("watched",), True)
+        manual_paths.add(("watched",))
+
+    warnings = []
+    if fetch_external_ratings:
+        lookup = fetch_omdb_metadata(
+            title=canonical_name,
+            entity_type=entity_type,
+            imdb_id=metadata["external_ids"].get("imdb_id"),
+        )
+        warnings.extend(lookup["warnings"])
+        metadata = merge_media_metadata(
+            metadata,
+            lookup["metadata"],
+            protected_paths=manual_paths,
+        )
+
+    return metadata, warnings
 
 
 def describe_retrieval(retrieval: dict[str, Any]) -> dict[str, Any]:

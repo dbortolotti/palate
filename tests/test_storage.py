@@ -99,6 +99,51 @@ class StorageBehaviorTest(unittest.TestCase):
 
         self.assertEqual(len(wine["signals"]), 2)
 
+    def test_migration_adds_empty_metadata_to_existing_database(self) -> None:
+        raw_db_path = self.temp_dir / "raw_metadata.sqlite"
+        conn = sqlite3.connect(raw_db_path)
+        conn.executescript(
+            """
+            CREATE TABLE entities (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL,
+              canonical_name TEXT NOT NULL,
+              source_text TEXT,
+              notes TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            INSERT INTO entities (id, type, canonical_name)
+            VALUES ('movie_old', 'movie', 'Old Movie');
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        reopened = open_store(str(raw_db_path))
+        movie = reopened.list_entities()[0]
+
+        self.assertEqual(movie["metadata"], {})
+        self.assertEqual(movie["metadata_json"], "{}")
+
+    def test_upsert_entity_stores_and_returns_parsed_metadata(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "movie_meta",
+                "type": "movie",
+                "canonical_name": "Metadata Movie",
+                "metadata": {
+                    "director": "Jane Director",
+                    "external_ids": {"imdb_id": "tt1234567"},
+                },
+            }
+        )
+
+        movie = self.store.list_entities()[0]
+
+        self.assertEqual(movie["metadata"]["director"], "Jane Director")
+        self.assertEqual(movie["metadata"]["external_ids"]["imdb_id"], "tt1234567")
+
     def test_decision_rows_preserve_serialized_payloads(self) -> None:
         decision_id = self.store.log_decision(
             query="query",

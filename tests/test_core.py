@@ -105,6 +105,104 @@ class CoreBehaviorTest(unittest.TestCase):
             {"restaurant_view", "restaurant_loud"},
         )
 
+    def test_search_text_matches_media_metadata(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "movie_inception",
+                "type": "movie",
+                "canonical_name": "Inception",
+                "metadata": {
+                    "synopsis": "A thief enters dreams to plant an idea.",
+                    "main_actors": ["Leonardo DiCaprio"],
+                    "director": "Christopher Nolan",
+                    "country": "United States",
+                    "genre": ["Sci-Fi", "Thriller"],
+                    "external_ids": {"imdb_id": "tt1375666"},
+                },
+            }
+        )
+
+        intent = base_intent(entity_type="movie", search_text="Nolan dream tt1375666")
+        retrieval = retrieve_candidates(self.store, intent)
+
+        self.assertEqual([entity["id"] for entity in retrieval["candidates"]], ["movie_inception"])
+
+    def test_external_ratings_are_grounding_facts(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "movie_grounding",
+                "type": "movie",
+                "canonical_name": "Grounding Movie",
+                "metadata": {
+                    "external_ratings": {
+                        "imdb": {"rating": 8.8, "votes": 2000000},
+                        "rotten_tomatoes": {"critic_score": 87},
+                    },
+                },
+            }
+        )
+
+        intent = base_intent(entity_type="movie")
+        retrieval = retrieve_candidates(self.store, intent)
+        ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
+
+        self.assertIn("IMDb 8.8/10, 2,000,000 votes", ranked[0]["signal_facts"])
+        self.assertIn("Rotten Tomatoes critic 87%", ranked[0]["signal_facts"])
+        self.assertEqual(
+            ranked[0]["metadata"]["external_ratings"]["rotten_tomatoes"]["critic_score"],
+            87,
+        )
+
+    def test_external_ratings_only_break_primary_score_ties(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "movie_high_external",
+                "type": "movie",
+                "canonical_name": "High External",
+                "metadata": {
+                    "external_ratings": {
+                        "imdb": {"rating": 9.0, "votes": 1000},
+                        "rotten_tomatoes": {"critic_score": 95},
+                    },
+                },
+            }
+        )
+        self.store.upsert_entity(
+            {
+                "id": "movie_personal",
+                "type": "movie",
+                "canonical_name": "Personal Favorite",
+                "metadata": {
+                    "external_ratings": {
+                        "imdb": {"rating": 6.0, "votes": 1000},
+                        "rotten_tomatoes": {"critic_score": 60},
+                    },
+                },
+                "signals": [{"type": "rating", "value": 5}],
+            }
+        )
+        self.store.upsert_entity(
+            {
+                "id": "movie_low_external",
+                "type": "movie",
+                "canonical_name": "Low External",
+                "metadata": {
+                    "external_ratings": {
+                        "imdb": {"rating": 5.0, "votes": 1000},
+                        "rotten_tomatoes": {"critic_score": 50},
+                    },
+                },
+            }
+        )
+
+        intent = base_intent(entity_type="movie")
+        retrieval = retrieve_candidates(self.store, intent)
+        ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
+
+        self.assertEqual(ranked[0]["id"], "movie_personal")
+        self.assertEqual(ranked[1]["id"], "movie_high_external")
+        self.assertEqual(ranked[2]["id"], "movie_low_external")
+
     def test_context_match_can_lift_contextually_relevant_item(self) -> None:
         self.store.upsert_entity(
             {

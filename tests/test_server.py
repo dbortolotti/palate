@@ -116,6 +116,126 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(stored["attributes"]["premium"], 0.4)
         self.assertEqual({signal["type"] for signal in stored["signals"]}, {"rating", "recommended_by"})
 
+    def test_remember_accepts_movie_and_series_types(self) -> None:
+        movie_result = server.palate_remember(
+            id="movie_ok",
+            type="movie",
+            canonical_name="Movie OK",
+            fetch_external_ratings=False,
+        )
+        series_result = server.palate_remember(
+            id="series_ok",
+            type="series",
+            canonical_name="Series OK",
+            fetch_external_ratings=False,
+        )
+
+        self.assertTrue(movie_result["stored"])
+        self.assertTrue(series_result["stored"])
+        self.assertEqual(
+            {entity["type"] for entity in self.store.list_entities() if entity["id"] in {"movie_ok", "series_ok"}},
+            {"movie", "series"},
+        )
+
+    def test_remember_stores_media_metadata_and_rating_marks_watched(self) -> None:
+        server.palate_remember(
+            id="movie_meta",
+            type="movie",
+            canonical_name="Manual Movie",
+            rating=4,
+            synopsis="A precise thriller.",
+            main_actors=["Actor One", "Actor Two"],
+            director="Director One",
+            country="United Kingdom",
+            genre=["Thriller"],
+            imdb_id="tt7654321",
+            fetch_external_ratings=False,
+        )
+
+        stored = next(entity for entity in self.store.list_entities() if entity["id"] == "movie_meta")
+
+        self.assertTrue(stored["metadata"]["watched"])
+        self.assertEqual(stored["metadata"]["synopsis"], "A precise thriller.")
+        self.assertEqual(stored["metadata"]["main_actors"], ["Actor One", "Actor Two"])
+        self.assertEqual(stored["metadata"]["director"], "Director One")
+        self.assertEqual(stored["metadata"]["country"], "United Kingdom")
+        self.assertEqual(stored["metadata"]["genre"], ["Thriller"])
+        self.assertEqual(stored["metadata"]["external_ids"]["imdb_id"], "tt7654321")
+
+    def test_remember_warns_when_omdb_key_is_missing(self) -> None:
+        with patch.dict("os.environ", {"OMDB_API_KEY": ""}):
+            result = server.palate_remember(
+                id="movie_no_key",
+                type="movie",
+                canonical_name="No Key Movie",
+            )
+
+        self.assertTrue(result["stored"])
+        self.assertIn("OMDB_API_KEY is not set", result["warnings"][0])
+
+    def test_omdb_metadata_fills_empty_fields_without_overriding_manual_fields(self) -> None:
+        with patch.object(
+            server,
+            "fetch_omdb_metadata",
+            return_value={
+                "metadata": {
+                    "synopsis": "OMDb synopsis",
+                    "director": "OMDb Director",
+                    "external_ids": {"imdb_id": "tt1111111"},
+                    "external_ratings": {
+                        "imdb": {"rating": 8.5, "votes": 1200},
+                        "rotten_tomatoes": {"critic_score": 91},
+                    },
+                    "ratings_source": {"provider": "omdb", "fetched_at": "2026-04-30T00:00:00+00:00"},
+                },
+                "warnings": [],
+            },
+        ):
+            server.palate_remember(
+                id="movie_omdb",
+                type="movie",
+                canonical_name="OMDb Movie",
+                director="Manual Director",
+            )
+
+        stored = next(entity for entity in self.store.list_entities() if entity["id"] == "movie_omdb")
+
+        self.assertEqual(stored["metadata"]["director"], "Manual Director")
+        self.assertEqual(stored["metadata"]["synopsis"], "OMDb synopsis")
+        self.assertEqual(stored["metadata"]["external_ids"]["imdb_id"], "tt1111111")
+        self.assertEqual(stored["metadata"]["external_ratings"]["imdb"]["rating"], 8.5)
+
+    def test_manual_media_metadata_overrides_llm_metadata(self) -> None:
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={
+                "attributes": {},
+                "notes": "normalized",
+                "metadata": {
+                    "director": "LLM Director",
+                    "genre": ["Drama"],
+                },
+            },
+        ):
+            server.palate_remember(
+                id="movie_manual_wins",
+                type="movie",
+                canonical_name="Manual Wins",
+                description="some movie notes",
+                director="Manual Director",
+                fetch_external_ratings=False,
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "movie_manual_wins"
+        )
+
+        self.assertEqual(stored["metadata"]["director"], "Manual Director")
+        self.assertEqual(stored["metadata"]["genre"], ["Drama"])
+
     def test_remember_rejects_unknown_entity_type(self) -> None:
         with self.assertRaises(ValueError):
             server.palate_remember(

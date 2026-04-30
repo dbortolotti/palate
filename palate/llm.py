@@ -127,6 +127,8 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "Normalize noisy descriptive text into Palate's fixed attribute schema.",
                 "Never invent new attribute keys.",
                 "Each value must be in [0, 1]. Use 0 when not evidenced.",
+                "For movie or series items, extract only explicitly evidenced media metadata.",
+                "Do not invent external ratings, external IDs, or watched status.",
             ]
         ),
         payload={
@@ -137,7 +139,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
         schema={
             "type": "object",
             "additionalProperties": False,
-            "required": ["attributes", "notes"],
+            "required": ["attributes", "notes", "metadata"],
             "properties": {
                 "attributes": {
                     "type": "object",
@@ -149,6 +151,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                     },
                 },
                 "notes": {"type": "string"},
+                "metadata": media_metadata_schema(),
             },
         },
     )
@@ -212,3 +215,70 @@ def json_response(
         },
     )
     return json.loads(response.output_text)
+
+
+def media_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "synopsis",
+            "main_actors",
+            "director",
+            "country",
+            "genre",
+            "watched",
+            "watched_at",
+            "external_ids",
+            "external_ratings",
+            "ratings_source",
+        ],
+        "properties": {
+            "synopsis": {"type": ["string", "null"]},
+            "main_actors": {"type": "array", "items": {"type": "string"}},
+            "director": {"type": ["string", "null"]},
+            "country": {"type": ["string", "null"]},
+            "genre": {"type": "array", "items": {"type": "string"}},
+            "watched": {"type": "boolean"},
+            "watched_at": {"type": ["string", "null"]},
+            "external_ids": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["imdb_id"],
+                "properties": {"imdb_id": {"type": ["string", "null"]}},
+            },
+            "external_ratings": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["imdb", "rotten_tomatoes"],
+                "properties": {
+                    "imdb": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["rating", "votes"],
+                        "properties": {
+                            "rating": {"type": ["number", "null"]},
+                            "votes": {"type": ["integer", "null"]},
+                        },
+                    },
+                    "rotten_tomatoes": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["critic_score"],
+                        "properties": {
+                            "critic_score": {"type": ["integer", "null"]}
+                        },
+                    },
+                },
+            },
+            "ratings_source": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["provider", "fetched_at"],
+                "properties": {
+                    "provider": {"type": ["string", "null"]},
+                    "fetched_at": {"type": ["string", "null"]},
+                },
+            },
+        },
+    }

@@ -48,6 +48,7 @@ class BackupBehaviorTest(unittest.TestCase):
 
         exported = json.loads(json_path.read_text(encoding="utf-8"))
         self.assertEqual(exported["entities"][0]["canonical_name"], "Backup Wine")
+        self.assertEqual(exported["entities"][0]["metadata_json"], "{}")
         self.assertEqual(exported["attributes"][0]["key"], "oak")
         self.assertEqual(exported["signals"][0]["type"], "rating")
         self.assertEqual(result["google_drive"], {"enabled": False})

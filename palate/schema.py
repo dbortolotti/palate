@@ -14,7 +14,15 @@ ATTRIBUTE_KEYS = [
     "casual",
 ]
 
-ENTITY_TYPES = ["wine", "restaurant", "music", "cigar", "experience"]
+ENTITY_TYPES = [
+    "wine",
+    "restaurant",
+    "music",
+    "cigar",
+    "experience",
+    "movie",
+    "series",
+]
 
 INTENTS = [
     "contextual_decision",

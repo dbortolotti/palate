@@ -31,6 +31,7 @@ def migrate(conn: sqlite3.Connection) -> None:
           canonical_name TEXT NOT NULL,
           source_text TEXT,
           notes TEXT,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -73,6 +74,14 @@ def migrate(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    columns = {
+        row["name"] if isinstance(row, sqlite3.Row) else row[1]
+        for row in conn.execute("PRAGMA table_info(entities)").fetchall()
+    }
+    if "metadata_json" not in columns:
+        conn.execute(
+            "ALTER TABLE entities ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'"
+        )
     conn.commit()
 
 
@@ -83,13 +92,21 @@ class PalateStore:
     def upsert_entity(self, entity: dict[str, Any]) -> None:
         self.conn.execute(
             """
-            INSERT INTO entities (id, type, canonical_name, source_text, notes)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO entities (
+              id,
+              type,
+              canonical_name,
+              source_text,
+              notes,
+              metadata_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               type = excluded.type,
               canonical_name = excluded.canonical_name,
               source_text = excluded.source_text,
-              notes = excluded.notes
+              notes = excluded.notes,
+              metadata_json = excluded.metadata_json
             """,
             (
                 entity["id"],
@@ -97,6 +114,7 @@ class PalateStore:
                 entity["canonical_name"],
                 entity.get("source_text"),
                 entity.get("notes"),
+                json.dumps(entity.get("metadata") or {}, sort_keys=True),
             ),
         )
 
@@ -147,6 +165,7 @@ class PalateStore:
         result = []
         for entity in entities:
             entity_dict = dict(entity)
+            entity_dict["metadata"] = parse_metadata(entity_dict.get("metadata_json"))
             attrs = self.conn.execute(
                 "SELECT key, value FROM attributes WHERE entity_id = ?",
                 (entity_dict["id"],),
@@ -247,6 +266,16 @@ def normalize(value: Any) -> str:
 
 def clamp01(value: Any) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def parse_metadata(value: Any) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        metadata = json.loads(str(value))
+    except json.JSONDecodeError:
+        return {}
+    return metadata if isinstance(metadata, dict) else {}
 
 
 def unique_by_id(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:

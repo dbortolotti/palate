@@ -21,6 +21,10 @@ The core system owns:
 - negative filtering
 - decision logging
 
+Movie and series memories can store structured metadata plus OMDb-backed IMDb
+and Rotten Tomatoes critic ratings. External ratings are stored as reference
+metadata only; the personal 1-5 `rating` signal remains the taste score.
+
 ## Setup
 
 ```sh
@@ -30,6 +34,8 @@ python3 -m palate.seed
 ```
 
 Set `OPENAI_API_KEY` in `.env` before using tools that require the LLM.
+Set `OMDB_API_KEY` to fetch external movie and series ratings when remembering
+media items.
 
 ## Run
 
@@ -54,7 +60,7 @@ python3 -m unittest discover -s tests
 
 - `palate_query`: interpret a free-form taste query, rank memory, and explain results
 - `palate_evaluate_options`: extract and evaluate a pasted option set
-- `palate_remember`: store a taste memory, optionally normalizing raw description text
+- `palate_remember`: store a taste memory, optionally normalizing raw description text and fetching movie or series ratings from OMDb
 - `palate_recall`: recall matching explicit memory
 - `palate_enrich_item`: normalize noisy text into the fixed attribute schema
 - `palate_log_decision`: record what the user chose
@@ -160,6 +166,7 @@ only manages files/folders created by this app or explicitly selected for it.
       "cwd": "/Users/oric/git/palate",
       "env": {
         "OPENAI_API_KEY": "your-openai-api-key",
+        "OMDB_API_KEY": "your-omdb-api-key",
         "PALATE_DB_PATH": "./data/palate.sqlite",
         "PALATE_MODEL": "gpt-5.4-nano"
       }
