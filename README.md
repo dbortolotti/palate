@@ -63,6 +63,7 @@ python3 -m unittest discover -s tests
 - `palate_query`: interpret a free-form taste query, rank memory, and explain results
 - `palate_evaluate_options`: extract and evaluate a pasted option set
 - `palate_remember`: store a taste memory with required description text, optional watched/tried status, personal rating, attributes derived from description, and optional OMDb movie or series ratings
+- `palate_lookup`: compute the Palate record, attributes, metadata, and signals without storing; use only when the user explicitly says not to store
 - `palate_recall`: recall matching explicit memory
 - `palate_delete_record`: delete one explicit memory by exact entity ID
 - `palate_enrich_item`: normalize noisy text into the fixed attribute schema with 95% intervals

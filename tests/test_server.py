@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
 import tempfile
 import unittest
@@ -252,6 +253,73 @@ class ServerToolBehaviorTest(unittest.TestCase):
             {signal["type"] for signal in stored["signals"]},
             {"rating", "tried"},
         )
+
+    def test_lookup_computes_memory_without_storing(self) -> None:
+        before_ids = {entity["id"] for entity in self.store.list_entities()}
+
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={
+                "attributes": {
+                    "suspenseful": {
+                        "value": 0.8,
+                        "interval_95": {"lower": 0.7, "upper": 0.9},
+                    },
+                },
+                "notes": "normalized",
+                "metadata": {
+                    "director": "LLM Director",
+                    "genre": ["Thriller"],
+                },
+            },
+        ):
+            result = server.palate_lookup(
+                type="movie",
+                canonical_name="Lookup Movie",
+                description="A tense thriller.",
+                do_not_store=True,
+                rating=8,
+                director="Manual Director",
+                fetch_external_ratings=False,
+            )
+
+        after_ids = {entity["id"] for entity in self.store.list_entities()}
+        self.assertEqual(after_ids, before_ids)
+        self.assertFalse(result["stored"])
+        self.assertEqual(result["record"]["canonical_name"], "Lookup Movie")
+        self.assertEqual(result["record"]["attributes"]["suspenseful"], 0.8)
+        self.assertEqual(
+            result["record"]["attribute_intervals_95"]["suspenseful"],
+            {"lower": 0.7, "upper": 0.9},
+        )
+        self.assertEqual(result["record"]["metadata"]["director"], "Manual Director")
+        self.assertTrue(result["record"]["metadata"]["watched"])
+        self.assertEqual(
+            {signal["type"] for signal in result["record"]["signals"]},
+            {"rating", "tried"},
+        )
+
+    def test_lookup_requires_explicit_do_not_store_flag(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as caught:
+                server.palate_lookup(
+                    type="wine",
+                    canonical_name="Lookup Wine",
+                    description="A structured wine.",
+                    do_not_store=False,
+                    fetch_external_ratings=False,
+                )
+
+        self.assertIn("do_not_store=true", str(caught.exception))
+        self.assertIn("explicitly says not to store", str(caught.exception))
+
+    def test_lookup_mcp_schema_requires_do_not_store(self) -> None:
+        tools = asyncio.run(server.mcp.list_tools())
+        lookup_tool = next(tool for tool in tools if tool.name == "palate_lookup")
+
+        self.assertIn("do_not_store", lookup_tool.inputSchema["required"])
+        self.assertIn("explicitly says not to store", lookup_tool.description)
 
     def test_remember_stores_music_metadata(self) -> None:
         with patch.object(

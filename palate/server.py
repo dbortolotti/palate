@@ -199,6 +199,140 @@ def palate_remember(
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
     """Store memory; ask one 1-10 rating question, accepting "no" if not tried/watched."""
+    memory = compute_memory_payload(
+        type=type,
+        canonical_name=canonical_name,
+        description=description,
+        rating=rating,
+        tried=tried,
+        recommended_by=recommended_by,
+        notes=notes,
+        artist=artist,
+        album=album,
+        personnel=personnel,
+        synopsis=synopsis,
+        main_actors=main_actors,
+        director=director,
+        country=country,
+        language=language,
+        genre=genre,
+        runtime=runtime,
+        seasons=seasons,
+        watched=watched,
+        watched_at=watched_at,
+        imdb_id=imdb_id,
+        fetch_external_ratings=fetch_external_ratings,
+    )
+
+    record = {"id": id, **memory["record"]}
+    store.upsert_entity(record)
+
+    return {
+        "stored": True,
+        "id": id,
+        "normalized_attributes": memory["normalized_attributes"],
+        "normalized_attribute_intervals_95": memory[
+            "normalized_attribute_intervals_95"
+        ],
+        "metadata": memory["record"]["metadata"],
+        "warnings": memory["warnings"],
+    }
+
+
+@mcp.tool()
+def palate_lookup(
+    type: EntityType,
+    canonical_name: str,
+    description: str,
+    do_not_store: bool,
+    rating: float | None = None,
+    tried: bool | None = None,
+    recommended_by: str | None = None,
+    notes: str | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+    personnel: list[str] | None = None,
+    synopsis: str | None = None,
+    main_actors: list[str] | None = None,
+    director: str | None = None,
+    country: list[str] | None = None,
+    language: list[str] | None = None,
+    genre: list[str] | None = None,
+    runtime: int | None = None,
+    seasons: int | None = None,
+    watched: bool | None = None,
+    watched_at: str | None = None,
+    imdb_id: str | None = None,
+    fetch_external_ratings: bool = True,
+) -> dict[str, Any]:
+    """Compute a Palate memory preview without storing; call only when the user explicitly says not to store."""
+    if do_not_store is not True:
+        raise ValueError(
+            "palate_lookup requires do_not_store=true and should only be used "
+            "when the user explicitly says not to store the result."
+        )
+
+    memory = compute_memory_payload(
+        type=type,
+        canonical_name=canonical_name,
+        description=description,
+        rating=rating,
+        tried=tried,
+        recommended_by=recommended_by,
+        notes=notes,
+        artist=artist,
+        album=album,
+        personnel=personnel,
+        synopsis=synopsis,
+        main_actors=main_actors,
+        director=director,
+        country=country,
+        language=language,
+        genre=genre,
+        runtime=runtime,
+        seasons=seasons,
+        watched=watched,
+        watched_at=watched_at,
+        imdb_id=imdb_id,
+        fetch_external_ratings=fetch_external_ratings,
+    )
+
+    return {
+        "stored": False,
+        "record": memory["record"],
+        "normalized_attributes": memory["normalized_attributes"],
+        "normalized_attribute_intervals_95": memory[
+            "normalized_attribute_intervals_95"
+        ],
+        "warnings": memory["warnings"],
+    }
+
+
+def compute_memory_payload(
+    *,
+    type: EntityType,
+    canonical_name: str,
+    description: str,
+    rating: float | None,
+    tried: bool | None,
+    recommended_by: str | None,
+    notes: str | None,
+    artist: str | None,
+    album: str | None,
+    personnel: list[str] | None,
+    synopsis: str | None,
+    main_actors: list[str] | None,
+    director: str | None,
+    country: list[str] | None,
+    language: list[str] | None,
+    genre: list[str] | None,
+    runtime: int | None,
+    seasons: int | None,
+    watched: bool | None,
+    watched_at: str | None,
+    imdb_id: str | None,
+    fetch_external_ratings: bool,
+) -> dict[str, Any]:
     if type not in ENTITY_TYPES:
         raise ValueError(f"type must be one of: {', '.join(ENTITY_TYPES)}")
     if not isinstance(description, str) or not description.strip():
@@ -269,26 +403,19 @@ def palate_remember(
     if recommended_by:
         signals.append({"type": "recommended_by", "value": recommended_by})
 
-    store.upsert_entity(
-        {
-            "id": id,
+    return {
+        "record": {
             "type": type,
             "canonical_name": canonical_name,
             "source_text": description,
             "notes": notes if notes is not None else enrichment["notes"],
             "metadata": metadata,
-            "attributes": normalized_attribute_payload,
+            "attributes": normalized_attributes,
             "attribute_intervals_95": normalized_attribute_intervals_95,
             "signals": signals,
-        }
-    )
-
-    return {
-        "stored": True,
-        "id": id,
+        },
         "normalized_attributes": normalized_attributes,
         "normalized_attribute_intervals_95": normalized_attribute_intervals_95,
-        "metadata": metadata,
         "warnings": metadata_warnings,
     }
 

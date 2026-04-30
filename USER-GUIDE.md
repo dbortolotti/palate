@@ -22,6 +22,8 @@ series, use the Palate connector instead of relying on chat memory alone.
 
 Use Palate to:
 - remember explicit preferences, ratings, notes, and recommendations
+- look up the computed Palate record without storing it when I explicitly say
+  not to store it
 - recall saved taste memories
 - evaluate pasted option sets such as wine lists or restaurant shortlists
 - recommend from existing memory using the current context
@@ -36,6 +38,7 @@ When remembering an item and my experience or score is missing, ask one
 follow-up: "How do you rate it from 1-10? Answer no if you have not tried it."
 For movies and series, treat "tried it" as "watched it." Do not send manual
 attributes; Palate derives attributes from the description.
+Use lookup without storing only when I explicitly ask you not to store the item.
 ```
 
 If the client does not use Palate automatically, name it directly:
@@ -292,6 +295,31 @@ explicit, you can provide one:
 Use Palate to remember this as id wine_ridge_estate_cabernet_2019:
 Ridge Estate Cabernet 2019, wine, tried, 9/10, premium, full-bodied, and oaky.
 ```
+
+### Lookup Without Storing
+
+Use this when the user wants Palate to compute the normalized record, attributes,
+metadata, signals, or external media ratings, but explicitly says not to store
+the item. Do not use this as a default preview before remembering.
+
+Good prompts:
+
+```text
+Use Palate to look this up but do not store it:
+Name: Heat
+Type: movie
+Description: intense, precise, classic Los Angeles crime film
+Rating: 10/10
+Director: Michael Mann
+IMDb ID: tt0113277
+```
+
+Best practice:
+
+- Call `palate_lookup` only when the user explicitly says not to store the item.
+- Set `do_not_store=true`.
+- Follow the same rating and metadata guidance as `palate_remember`.
+- Do not pass manual `attributes` or `attribute_intervals_95`.
 
 ### Recall Something Fuzzy
 
