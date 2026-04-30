@@ -144,6 +144,36 @@ class StorageBehaviorTest(unittest.TestCase):
         self.assertEqual(movie["metadata"]["director"], "Jane Director")
         self.assertEqual(movie["metadata"]["external_ids"]["imdb_id"], "tt1234567")
 
+    def test_delete_entity_removes_entity_attributes_and_signals(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "wine_delete",
+                "type": "wine",
+                "canonical_name": "Delete Wine",
+                "attributes": {"oak": 0.8},
+                "signals": [{"type": "rating", "value": 4}],
+            }
+        )
+
+        deleted = self.store.delete_entity("wine_delete")
+        attribute_rows = self.store.conn.execute(
+            "SELECT COUNT(*) AS count FROM attributes WHERE entity_id = ?",
+            ("wine_delete",),
+        ).fetchone()
+        signal_rows = self.store.conn.execute(
+            "SELECT COUNT(*) AS count FROM signals WHERE entity_id = ?",
+            ("wine_delete",),
+        ).fetchone()
+
+        self.assertIsNotNone(deleted)
+        self.assertEqual(deleted["canonical_name"], "Delete Wine")
+        self.assertEqual(self.store.list_entities(), [])
+        self.assertEqual(attribute_rows["count"], 0)
+        self.assertEqual(signal_rows["count"], 0)
+
+    def test_delete_entity_returns_none_for_missing_id(self) -> None:
+        self.assertIsNone(self.store.delete_entity("missing"))
+
     def test_decision_rows_preserve_serialized_payloads(self) -> None:
         decision_id = self.store.log_decision(
             query="query",

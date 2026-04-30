@@ -258,6 +258,28 @@ def palate_recall(
 
 
 @mcp.tool()
+def palate_delete_record(id: str) -> dict[str, Any]:
+    """Delete one explicit Palate memory by exact entity id."""
+    deleted = store.delete_entity(id)
+    if deleted is None:
+        return {
+            "deleted": False,
+            "id": id,
+            "error": f"No Palate record found for id {id}.",
+        }
+
+    return {
+        "deleted": True,
+        "id": id,
+        "record": {
+            "id": deleted["id"],
+            "name": deleted["canonical_name"],
+            "type": deleted["type"],
+        },
+    }
+
+
+@mcp.tool()
 def palate_enrich_item(item_text: str, entity_type: EntityType) -> dict[str, Any]:
     """Normalize noisy item text into Palate's fixed attribute schema."""
     if entity_type not in ENTITY_TYPES:

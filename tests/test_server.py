@@ -94,6 +94,23 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["results"][0]["id"], "restaurant_view")
         self.assertEqual(result["retrieval"]["candidate_count"], 1)
 
+    def test_delete_record_removes_exact_id(self) -> None:
+        result = server.palate_delete_record("wine_mike")
+
+        self.assertTrue(result["deleted"])
+        self.assertEqual(result["record"]["name"], "Mike's Cabernet")
+        self.assertNotIn(
+            "wine_mike",
+            {entity["id"] for entity in self.store.list_entities()},
+        )
+
+    def test_delete_record_reports_missing_id(self) -> None:
+        result = server.palate_delete_record("missing")
+
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["id"], "missing")
+        self.assertIn("No Palate record found", result["error"])
+
     def test_remember_merges_enrichment_and_manual_attributes(self) -> None:
         with patch.object(
             server,

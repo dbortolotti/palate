@@ -26,6 +26,7 @@ Use Palate to:
 - evaluate pasted option sets such as wine lists or restaurant shortlists
 - recommend from existing memory using the current context
 - log what I chose after a recommendation
+- delete explicit memories by exact ID when I ask
 - trigger a backup when I ask for one
 
 Do not invent Palate memories or explanations. If Palate returns ranked results,
@@ -323,6 +324,26 @@ Best practice:
 - If there was no previous decision, give the chosen item name or ID and a short
   description of the context.
 
+### Delete A Memory
+
+Use this when you want to remove one saved Palate record. Deletion uses the
+exact internal entity ID, not fuzzy title matching.
+
+Good prompts:
+
+```text
+Use Palate to delete record wine_ridge_estate_cabernet_2019.
+```
+
+```text
+Use Palate to delete the Palate record with id movie_heat_1995.
+```
+
+Best practice:
+
+- Recall the item first if you do not know the exact ID.
+- Create a backup first if the record matters and you may want to recover it.
+
 ### Create A Backup
 
 Use this when you want an immediate backup outside the daily schedule.
@@ -388,6 +409,12 @@ Show the matched signals.
 
 ```text
 Use Palate to log that I chose [item name or ID] for decision_id [number].
+```
+
+### Record Deletion
+
+```text
+Use Palate to delete record [exact entity ID].
 ```
 
 ## What To Avoid
@@ -511,6 +538,10 @@ The Bear
 
 ```text
 Use Palate to log that I chose the top-ranked option from the last decision.
+```
+
+```text
+Use Palate to delete record movie_heat_1995.
 ```
 
 ```text

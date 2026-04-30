@@ -188,6 +188,23 @@ class PalateStore:
     def find_entities_by_names(self, names: list[str]) -> list[dict[str, Any]]:
         return self.match_entities_by_names(names)["matched"]
 
+    def delete_entity(self, entity_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM entities WHERE id = ?",
+            (entity_id,),
+        ).fetchone()
+        if row is None:
+            return None
+
+        deleted = dict(row)
+        deleted["metadata"] = parse_metadata(deleted.get("metadata_json"))
+        cursor = self.conn.execute(
+            "DELETE FROM entities WHERE id = ?",
+            (entity_id,),
+        )
+        self.conn.commit()
+        return deleted if cursor.rowcount else None
+
     def match_entities_by_names(self, names: list[str]) -> dict[str, list[Any]]:
         all_entities = self.list_entities()
         matched = []
