@@ -54,8 +54,10 @@ Palate currently supports these entity types:
 
 It understands different fixed taste attributes for each entity type:
 
-- `wine`: `oak`, `premium`, `richness`, `intensity`, `classic`, `indulgent`,
-  `novelty`, `comfort`
+- `wine`: `premium`, `classic`, `body`, `tannin`, `acidity`, `oak`, plus
+  level-1 wine aroma wheel terms: `fruity`, `floral`, `spicy`, `vegetative`,
+  `nutty`, `caramelized`, `woody`, `earthy`, `chemical`, `pungent`,
+  `oxidized`, `microbiological`
 - `restaurant`: `premium`, `quiet`, `lively`, `indulgent`, `novelty`,
   `comfort`, `view`, `classic`, `casual`
 - `music`: `quiet`, `lively`, `intellectual`, `comfort`, `classic`,
@@ -70,10 +72,10 @@ It understands different fixed taste attributes for each entity type:
   `dark`, `light`, `slow_burn`, `serialized`, `comfort`, `novelty`,
   `classic`
 
-You can use natural language. For example, "a fancy oaky wine" can map to
-wine `premium` and `oak`; "somewhere low-key with a view" can map to
-restaurant `quiet` and `view`; "a tense cerebral film" can map to movie
-`suspenseful` and `cerebral`.
+You can use natural language. For example, "a fancy full-bodied oaky wine with
+firm tannin" can map to wine `premium`, `body`, `oak`, and `tannin`;
+"somewhere low-key with a view" can map to restaurant `quiet` and `view`; "a
+tense cerebral film" can map to movie `suspenseful` and `cerebral`.
 
 Movies and series can also store structured metadata:
 
@@ -149,7 +151,7 @@ Example with filters:
 
 ```text
 Use Palate. Find wines rated at least 8/10 that Mike recommended and that fit
-an indulgent evening.
+a premium, full-bodied evening.
 ```
 
 ### Evaluate A Pasted Option Set
@@ -207,7 +209,7 @@ Name: Ridge Estate Cabernet 2019
 Type: wine
 Tried: true
 Rating: 9/10
-Notes: premium, structured, cedar, oak, long finish
+Notes: premium, structured, full-bodied, cedar, oak, long finish
 Recommended by: Mike
 ```
 
@@ -218,7 +220,7 @@ Use Palate to remember Skyline Room as a restaurant. Tried: true. I liked it:
 
 ```text
 Use Palate to remember Alex's Syrah as a wine. Tried: true. Rating: 4/10.
-Notes: too heavy for me, intense, not a good fit for low-energy evenings.
+Notes: too full-bodied for me, spicy, not a good fit for low-energy evenings.
 ```
 
 ```text
@@ -271,7 +273,10 @@ Best practice:
   guessing.
 - Include who recommended it, if relevant.
 - Include concrete notes. Palate can normalize those notes into its fixed
-  attributes.
+  attributes with a 95% interval for each attribute value.
+- If you pass manual attributes to `palate_remember`, include
+  `attribute_intervals_95` when the value is uncertain. Omitted manual
+  intervals default to the exact value.
 - For movies and series, include watched status and your own rating when you
   have seen it. If you provide your own rating, Palate marks the item as
   watched.
@@ -282,7 +287,7 @@ explicit, you can provide one:
 
 ```text
 Use Palate to remember this as id wine_ridge_estate_cabernet_2019:
-Ridge Estate Cabernet 2019, wine, tried, 9/10, premium and oaky.
+Ridge Estate Cabernet 2019, wine, tried, 9/10, premium, full-bodied, and oaky.
 ```
 
 ### Recall Something Fuzzy
@@ -339,7 +344,7 @@ Good prompts:
 
 ```text
 Use Palate to enrich this wine description:
-"Rich, bold, cedar, vanilla oak, long finish, expensive-feeling."
+"Full-bodied, cedar, vanilla oak, long finish, expensive-feeling."
 ```
 
 ```text
@@ -351,7 +356,8 @@ This is useful when:
 
 - you pasted tasting notes
 - you copied a restaurant description
-- you want to check how Palate interprets the attributes before storing the item
+- you want to check how Palate interprets the attributes and 95% intervals
+  before storing the item
 
 ### Log What You Chose
 
@@ -429,8 +435,9 @@ Use Palate. I am choosing a [domain] for [situation]. I want something
 Example:
 
 ```text
-Use Palate. I am choosing a wine for tonight. I want something premium, oaky,
-and indulgent. Rank the best matches and explain the actual signals.
+Use Palate. I am choosing a wine for tonight. I want something premium,
+full-bodied, oaky, and woody. Rank the best matches and explain the actual
+signals.
 ```
 
 ### Option Set Evaluation
@@ -496,8 +503,8 @@ Find something mineral, saline, and high-acid.
 Better:
 
 ```text
-Use Palate. Find wines whose notes mention mineral, saline, or high-acid, and
-also consider novelty and classic if relevant.
+Use Palate. Find wines with high acidity whose notes mention mineral or saline,
+and also consider earthy and classic if relevant.
 ```
 
 Avoid vague logging:
@@ -519,7 +526,10 @@ Palate responses usually include:
 
 - `decision_id`: use this later when logging what you chose
 - `ranked_results`: the top grounded results
-- `matched_attributes`: attributes that contributed to the ranking
+- `matched_attributes`: attributes that contributed to the ranking, including
+  95% intervals
+- `attribute_intervals_95` and `attribute_details`: interval and value detail
+  for stored attributes
 - `signal_facts`: ratings, recommendations, saved/tried signals, or text matches
 - `metadata`: movie and series metadata, music artist/album/personnel/genre,
   and external ratings when stored
@@ -564,11 +574,12 @@ Use Palate to log my chosen item against the previous decision_id.
 ## Quick Examples
 
 ```text
-Use Palate. What wine should I open tonight if I want premium, oak, and comfort?
+Use Palate. What wine should I open tonight if I want premium, body, oak, and
+woody notes?
 ```
 
 ```text
-Use Palate. Evaluate this list for a quiet, indulgent dinner wine:
+Use Palate. Evaluate this list for a premium, full-bodied dinner wine:
 
 Ridge Estate Cabernet 2019
 Vietti Barolo 2016

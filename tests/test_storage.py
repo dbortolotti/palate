@@ -24,13 +24,34 @@ class StorageBehaviorTest(unittest.TestCase):
                 "id": "wine_bounds",
                 "type": "wine",
                 "canonical_name": "Bounds Wine",
-                "attributes": {"oak": 1.5, "quiet": -0.25},
+                "attributes": {
+                    "oak": {
+                        "value": 1.5,
+                        "interval_95": {"lower": 0.7, "upper": 1.2},
+                    },
+                    "quiet": {
+                        "value": -0.25,
+                        "interval_95": {"lower": -0.5, "upper": 0.4},
+                    },
+                },
             }
         )
 
         entity = self.store.list_entities()[0]
         self.assertEqual(entity["attributes"]["oak"], 1.0)
         self.assertEqual(entity["attributes"]["quiet"], 0.0)
+        self.assertEqual(
+            entity["attribute_intervals_95"]["oak"],
+            {"lower": 0.7, "upper": 1.0},
+        )
+        self.assertEqual(
+            entity["attribute_intervals_95"]["quiet"],
+            {"lower": 0.0, "upper": 0.4},
+        )
+        self.assertEqual(
+            entity["attribute_details"]["oak"],
+            {"value": 1.0, "interval_95": {"lower": 0.7, "upper": 1.0}},
+        )
 
     def test_name_matching_handles_case_and_punctuation(self) -> None:
         self.store.upsert_entity(
@@ -56,6 +77,49 @@ class StorageBehaviorTest(unittest.TestCase):
 
         matched = self.store.match_entities_by_names(["Repeat Wine", "repeat wine"])
         self.assertEqual([entity["id"] for entity in matched["matched"]], ["wine_repeat"])
+
+    def test_migration_converts_attribute_confidence_to_interval_and_removes_column(self) -> None:
+        raw_db_path = self.temp_dir / "raw_attribute_confidence.sqlite"
+        conn = sqlite3.connect(raw_db_path)
+        conn.executescript(
+            """
+            CREATE TABLE entities (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL,
+              canonical_name TEXT NOT NULL,
+              source_text TEXT,
+              notes TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE attributes (
+              entity_id TEXT NOT NULL,
+              key TEXT NOT NULL,
+              value REAL NOT NULL CHECK (value >= 0 AND value <= 1),
+              confidence REAL NOT NULL DEFAULT 100 CHECK (confidence >= 0 AND confidence <= 100),
+              PRIMARY KEY (entity_id, key)
+            );
+
+            INSERT INTO entities (id, type, canonical_name)
+            VALUES ('wine_confidence', 'wine', 'Confidence Wine');
+
+            INSERT INTO attributes (entity_id, key, value, confidence)
+            VALUES ('wine_confidence', 'oak', 0.70, 80);
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        reopened = open_store(str(raw_db_path))
+        wine = reopened.list_entities()[0]
+        columns = {
+            row["name"]
+            for row in reopened.conn.execute("PRAGMA table_info(attributes)").fetchall()
+        }
+
+        self.assertAlmostEqual(wine["attribute_intervals_95"]["oak"]["lower"], 0.5)
+        self.assertAlmostEqual(wine["attribute_intervals_95"]["oak"]["upper"], 0.9)
+        self.assertNotIn("confidence", columns)
 
     def test_migration_removes_duplicate_signals_from_existing_database(self) -> None:
         raw_db_path = self.temp_dir / "raw_duplicates.sqlite"
@@ -146,6 +210,56 @@ class StorageBehaviorTest(unittest.TestCase):
         ]
 
         self.assertEqual(ratings, ["9"])
+
+    def test_migration_replaces_old_wine_attributes_with_body_and_flavour_wheel(self) -> None:
+        raw_db_path = self.temp_dir / "raw_wine_attributes.sqlite"
+        conn = sqlite3.connect(raw_db_path)
+        conn.executescript(
+            """
+            CREATE TABLE entities (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL,
+              canonical_name TEXT NOT NULL,
+              source_text TEXT,
+              notes TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE attributes (
+              entity_id TEXT NOT NULL,
+              key TEXT NOT NULL,
+              value REAL NOT NULL CHECK (value >= 0 AND value <= 1),
+              PRIMARY KEY (entity_id, key)
+            );
+
+            INSERT INTO entities (id, type, canonical_name)
+            VALUES ('wine_old_attrs', 'wine', 'Old Attribute Wine');
+
+            INSERT INTO attributes (entity_id, key, value)
+            VALUES
+              ('wine_old_attrs', 'richness', 0.72),
+              ('wine_old_attrs', 'intensity', 0.84),
+              ('wine_old_attrs', 'comfort', 0.30),
+              ('wine_old_attrs', 'premium', 0.90),
+              ('wine_old_attrs', 'fruity', 0.55);
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        reopened = open_store(str(raw_db_path))
+        wine = reopened.list_entities()[0]
+
+        self.assertAlmostEqual(wine["attributes"]["body"], 0.84)
+        self.assertAlmostEqual(wine["attributes"]["premium"], 0.9)
+        self.assertAlmostEqual(wine["attributes"]["fruity"], 0.55)
+        self.assertEqual(
+            wine["attribute_intervals_95"]["body"],
+            {"lower": 0.72, "upper": 0.84},
+        )
+        self.assertNotIn("richness", wine["attributes"])
+        self.assertNotIn("intensity", wine["attributes"])
+        self.assertNotIn("comfort", wine["attributes"])
 
     def test_migration_adds_empty_metadata_to_existing_database(self) -> None:
         raw_db_path = self.temp_dir / "raw_metadata.sqlite"

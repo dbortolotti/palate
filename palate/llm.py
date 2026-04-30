@@ -138,7 +138,11 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
             [
                 "Normalize noisy descriptive text into Palate's fixed attribute schema for the given entity type.",
                 "Never invent new attribute keys.",
+                "Each attribute must include value and interval_95.",
                 "Each value must be in [0, 1]. Use 0 when not evidenced.",
+                "Each interval_95 is the 95% interval for the true attribute value.",
+                "Each interval_95 must include the value and stay within [0, 1].",
+                "Use a narrow interval when evidence is explicit and a wide interval when weak or absent.",
                 "For movie or series items, extract only explicitly evidenced media metadata.",
                 "For music items, extract only explicitly evidenced music metadata.",
                 "Use canonical genre values exactly as provided by the schema.",
@@ -163,7 +167,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                     "additionalProperties": False,
                     "required": allowed_attributes,
                     "properties": {
-                        key: {"type": "number", "minimum": 0, "maximum": 1}
+                        key: attribute_value_schema()
                         for key in allowed_attributes
                     },
                 },
@@ -172,6 +176,26 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
             },
         },
     )
+
+
+def attribute_value_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["value", "interval_95"],
+        "properties": {
+            "value": {"type": "number", "minimum": 0, "maximum": 1},
+            "interval_95": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["lower", "upper"],
+                "properties": {
+                    "lower": {"type": "number", "minimum": 0, "maximum": 1},
+                    "upper": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+            },
+        },
+    }
 
 
 def explain_results(

@@ -50,6 +50,9 @@ class BackupBehaviorTest(unittest.TestCase):
         self.assertEqual(exported["entities"][0]["canonical_name"], "Backup Wine")
         self.assertEqual(exported["entities"][0]["metadata_json"], "{}")
         self.assertEqual(exported["attributes"][0]["key"], "oak")
+        self.assertEqual(exported["attributes"][0]["lower_95"], 0.7)
+        self.assertEqual(exported["attributes"][0]["upper_95"], 0.7)
+        self.assertNotIn("confidence", exported["attributes"][0])
         self.assertEqual(exported["signals"][0]["type"], "rating")
         self.assertEqual(result["google_drive"], {"enabled": False})
 

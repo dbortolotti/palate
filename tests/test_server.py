@@ -115,7 +115,16 @@ class ServerToolBehaviorTest(unittest.TestCase):
         with patch.object(
             server,
             "normalize_enrichment",
-            return_value={"attributes": {"oak": 0.2, "premium": 0.4}, "notes": "normalized"},
+            return_value={
+                "attributes": {
+                    "oak": {"value": 0.2, "interval_95": {"lower": 0.1, "upper": 0.3}},
+                    "premium": {
+                        "value": 0.4,
+                        "interval_95": {"lower": 0.2, "upper": 0.6},
+                    },
+                },
+                "notes": "normalized",
+            },
         ):
             result = server.palate_remember(
                 id="wine_new",
@@ -123,6 +132,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 canonical_name="New Wine",
                 description="rich and oaky",
                 attributes={"oak": 0.9},
+                attribute_intervals_95={"oak": {"lower": 0.85, "upper": 0.95}},
                 rating=10,
                 recommended_by="Sam",
             )
@@ -131,6 +141,18 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertTrue(result["stored"])
         self.assertEqual(stored["attributes"]["oak"], 0.9)
         self.assertEqual(stored["attributes"]["premium"], 0.4)
+        self.assertEqual(
+            stored["attribute_intervals_95"]["oak"],
+            {"lower": 0.85, "upper": 0.95},
+        )
+        self.assertEqual(
+            stored["attribute_intervals_95"]["premium"],
+            {"lower": 0.2, "upper": 0.6},
+        )
+        self.assertEqual(
+            result["normalized_attribute_intervals_95"]["oak"],
+            {"lower": 0.1, "upper": 0.3},
+        )
         self.assertEqual(
             {signal["type"] for signal in stored["signals"]},
             {"rating", "tried", "recommended_by"},
@@ -271,6 +293,10 @@ class ServerToolBehaviorTest(unittest.TestCase):
         )
         self.assertEqual(stored["metadata"]["genre"], ["jazz"])
         self.assertEqual(stored["attributes"]["intellectual"], 0.8)
+        self.assertEqual(
+            stored["attribute_intervals_95"]["intellectual"],
+            {"lower": 0.8, "upper": 0.8},
+        )
 
     def test_remember_warns_when_omdb_key_is_missing(self) -> None:
         with patch.dict("os.environ", {"OMDB_API_KEY": ""}), patch.object(
@@ -388,6 +414,34 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertIn("attributes for movie", str(caught.exception))
         self.assertIn("oak", str(caught.exception))
+
+    def test_remember_rejects_old_wine_attributes_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as caught:
+                server.palate_remember(
+                    id="wine_old_attribute",
+                    type="wine",
+                    canonical_name="Old Attribute Wine",
+                    description="A wine with an old attribute.",
+                    attributes={"richness": 0.7},
+                )
+
+        self.assertIn("attributes for wine", str(caught.exception))
+        self.assertIn("richness", str(caught.exception))
+
+    def test_remember_rejects_invalid_attribute_interval_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as caught:
+                server.palate_remember(
+                    id="wine_bad_interval",
+                    type="wine",
+                    canonical_name="Bad Interval Wine",
+                    description="A wine with a bad interval.",
+                    attributes={"oak": 0.7},
+                    attribute_intervals_95={"oak": {"lower": 0.9, "upper": 0.4}},
+                )
+
+        self.assertIn("attribute 95% interval for oak", str(caught.exception))
 
     def test_remember_rejects_rating_outside_ten_point_scale_before_llm_call(self) -> None:
         with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):

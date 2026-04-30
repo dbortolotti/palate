@@ -65,7 +65,7 @@ python3 -m unittest discover -s tests
 - `palate_remember`: store a taste memory with required description text, watched/tried status, personal rating, and optional OMDb movie or series ratings
 - `palate_recall`: recall matching explicit memory
 - `palate_delete_record`: delete one explicit memory by exact entity ID
-- `palate_enrich_item`: normalize noisy text into the fixed attribute schema
+- `palate_enrich_item`: normalize noisy text into the fixed attribute schema with 95% intervals
 - `palate_log_decision`: record what the user chose
 - `palate_backup_now`: create an immediate SQLite and JSON backup
 - `palate_how_to`: return the user guide and prompt patterns for client LLMs

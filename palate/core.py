@@ -144,13 +144,17 @@ def score_entity(
         value = float((entity.get("attributes") or {}).get(attr) or 0)
         if value > 0:
             facts["attribute_match"] += value
-            facts["matched_attributes"].append(f"{attr}: {value:.2f}")
+            facts["matched_attributes"].append(
+                format_attribute_fact(entity, attr, value)
+            )
 
     for key, wanted in context.items():
         value = float((entity.get("attributes") or {}).get(key) or 0)
         if wanted is True and value > 0:
             facts["context_match"] += value * 0.5
-            facts["matched_attributes"].append(f"context {key}: {value:.2f}")
+            facts["matched_attributes"].append(
+                format_attribute_fact(entity, key, value, prefix="context ")
+            )
 
     facts["search_match"] = score_text_match(entity, search_text)
     if facts["search_match"] > 0:
@@ -183,6 +187,8 @@ def build_grounding(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "type": result["entity"]["type"],
             "score": result["score"],
             "matched_attributes": result["facts"]["matched_attributes"],
+            "attribute_intervals_95": result["entity"].get("attribute_intervals_95") or {},
+            "attribute_details": result["entity"].get("attribute_details") or {},
             "signal_facts": result["facts"]["signal_facts"],
             "negative_signals": result["facts"]["negative_signals"],
             "metadata": result["entity"].get("metadata") or {},
@@ -247,6 +253,22 @@ def tokenize(value: str) -> list[str]:
 
 def normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def format_attribute_fact(
+    entity: dict[str, Any],
+    key: str,
+    value: float,
+    *,
+    prefix: str = "",
+) -> str:
+    interval = (entity.get("attribute_intervals_95") or {}).get(key) or {
+        "lower": value,
+        "upper": value,
+    }
+    lower = float(interval.get("lower", value))
+    upper = float(interval.get("upper", value))
+    return f"{prefix}{key}: {value:.2f} (95% interval {lower:.2f}-{upper:.2f})"
 
 
 def rating_preference(rating: float) -> float:

@@ -257,7 +257,10 @@ class CoreBehaviorTest(unittest.TestCase):
         ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
 
         self.assertEqual(ranked[0]["id"], "restaurant_context_view")
-        self.assertIn("context view: 0.90", ranked[0]["matched_attributes"])
+        self.assertIn(
+            "context view: 0.90 (95% interval 0.90-0.90)",
+            ranked[0]["matched_attributes"],
+        )
 
     def test_attribute_matching_is_reflected_in_grounding(self) -> None:
         intent = base_intent(entity_type="wine", attributes=["oak", "premium"])
@@ -265,8 +268,22 @@ class CoreBehaviorTest(unittest.TestCase):
         ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
 
         self.assertEqual(ranked[0]["id"], "wine_mike")
-        self.assertIn("oak: 0.80", ranked[0]["matched_attributes"])
-        self.assertIn("premium: 0.70", ranked[0]["matched_attributes"])
+        self.assertIn(
+            "oak: 0.80 (95% interval 0.80-0.80)",
+            ranked[0]["matched_attributes"],
+        )
+        self.assertIn(
+            "premium: 0.70 (95% interval 0.70-0.70)",
+            ranked[0]["matched_attributes"],
+        )
+        self.assertEqual(
+            ranked[0]["attribute_intervals_95"]["oak"],
+            {"lower": 0.8, "upper": 0.8},
+        )
+        self.assertEqual(
+            ranked[0]["attribute_details"]["oak"],
+            {"value": 0.8, "interval_95": {"lower": 0.8, "upper": 0.8}},
+        )
 
     def test_dislike_signal_penalizes_but_does_not_hide_item(self) -> None:
         self.store.add_signal("wine_alex", "dislike", "too heavy")
@@ -327,7 +344,7 @@ def seed_store(store) -> None:
             "type": "wine",
             "canonical_name": "Alex's Syrah",
             "notes": "Rich and intense.",
-            "attributes": {"richness": 0.85, "intensity": 0.8},
+            "attributes": {"body": 0.85, "spicy": 0.45},
             "signals": [
                 {"type": "rating", "value": 10},
                 {"type": "recommended_by", "value": "Alex"},

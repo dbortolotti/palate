@@ -10,14 +10,24 @@ ENTITY_TYPES = [
 
 ATTRIBUTE_KEYS_BY_TYPE = {
     "wine": [
-        "oak",
         "premium",
-        "richness",
-        "intensity",
         "classic",
-        "indulgent",
-        "novelty",
-        "comfort",
+        "body",
+        "tannin",
+        "acidity",
+        "oak",
+        "fruity",
+        "floral",
+        "spicy",
+        "vegetative",
+        "nutty",
+        "caramelized",
+        "woody",
+        "earthy",
+        "chemical",
+        "pungent",
+        "oxidized",
+        "microbiological",
     ],
     "restaurant": [
         "premium",
@@ -120,7 +130,7 @@ def attribute_keys_for_type(entity_type: str | None) -> list[str]:
 
 def invalid_attribute_keys(
     entity_type: str,
-    attributes: dict[str, float] | None,
+    attributes: dict[str, object] | None,
 ) -> list[str]:
     allowed = set(attribute_keys_for_type(entity_type))
     return sorted(key for key in (attributes or {}) if key not in allowed)

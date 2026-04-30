@@ -12,12 +12,11 @@ ITEMS = [
         "canonical_name": "Ridge Monte Bello 2018",
         "notes": "Structured, premium, cedar and oak, long finish.",
         "attributes": {
-            "oak": 0.82,
             "premium": 0.95,
-            "richness": 0.78,
-            "intensity": 0.84,
             "classic": 0.9,
-            "indulgent": 0.75,
+            "body": 0.84,
+            "oak": 0.82,
+            "woody": 0.82,
         },
         "signals": [
             {"type": "rating", "value": 10},
@@ -31,11 +30,12 @@ ITEMS = [
         "canonical_name": "Echo de Lynch-Bages 2020",
         "notes": "Premium left-bank profile, cassis, oak, polished structure.",
         "attributes": {
-            "oak": 0.68,
             "premium": 0.78,
-            "richness": 0.72,
-            "intensity": 0.76,
             "classic": 0.82,
+            "body": 0.76,
+            "oak": 0.68,
+            "fruity": 0.72,
+            "woody": 0.68,
         },
         "signals": [
             {"type": "rating", "value": 8},

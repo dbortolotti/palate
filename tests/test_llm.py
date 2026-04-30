@@ -28,6 +28,16 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             kwargs["schema"]["properties"]["attributes"]["required"],
             movie_attributes,
         )
+        suspenseful_schema = kwargs["schema"]["properties"]["attributes"]["properties"][
+            "suspenseful"
+        ]
+        self.assertEqual(suspenseful_schema["required"], ["value", "interval_95"])
+        self.assertEqual(
+            suspenseful_schema["properties"]["interval_95"]["properties"]["upper"][
+                "maximum"
+            ],
+            1,
+        )
         self.assertIn("suspenseful", movie_attributes)
         self.assertNotIn("oak", movie_attributes)
         media_genre_schema = kwargs["schema"]["properties"]["metadata"]["properties"]["genre"]
@@ -64,6 +74,37 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             metadata_schema["properties"]["genre"]["items"]["enum"],
             MUSIC_GENRES,
         )
+
+    def test_wine_attribute_schema_uses_core_and_flavour_wheel_terms(self) -> None:
+        wine_attributes = attribute_keys_for_type("wine")
+
+        self.assertEqual(
+            wine_attributes,
+            [
+                "premium",
+                "classic",
+                "body",
+                "tannin",
+                "acidity",
+                "oak",
+                "fruity",
+                "floral",
+                "spicy",
+                "vegetative",
+                "nutty",
+                "caramelized",
+                "woody",
+                "earthy",
+                "chemical",
+                "pungent",
+                "oxidized",
+                "microbiological",
+            ],
+        )
+        self.assertNotIn("richness", wine_attributes)
+        self.assertNotIn("intensity", wine_attributes)
+        self.assertNotIn("indulgent", wine_attributes)
+        self.assertNotIn("comfort", wine_attributes)
 
     def test_parse_intent_filters_attributes_by_known_entity_type(self) -> None:
         context = {key: False for key in ATTRIBUTE_KEYS}
