@@ -111,7 +111,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["id"], "missing")
         self.assertIn("No Palate record found", result["error"])
 
-    def test_remember_merges_enrichment_and_manual_attributes(self) -> None:
+    def test_remember_ignores_client_attributes_and_stores_enrichment(self) -> None:
         with patch.object(
             server,
             "normalize_enrichment",
@@ -139,11 +139,11 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         stored = next(entity for entity in self.store.list_entities() if entity["id"] == "wine_new")
         self.assertTrue(result["stored"])
-        self.assertEqual(stored["attributes"]["oak"], 0.9)
+        self.assertEqual(stored["attributes"]["oak"], 0.2)
         self.assertEqual(stored["attributes"]["premium"], 0.4)
         self.assertEqual(
             stored["attribute_intervals_95"]["oak"],
-            {"lower": 0.85, "upper": 0.95},
+            {"lower": 0.1, "upper": 0.3},
         )
         self.assertEqual(
             stored["attribute_intervals_95"]["premium"],
@@ -401,47 +401,42 @@ class ServerToolBehaviorTest(unittest.TestCase):
                     description="   ",
                 )
 
-    def test_remember_rejects_attributes_not_valid_for_type_before_llm_call(self) -> None:
-        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
-            with self.assertRaises(ValueError) as caught:
-                server.palate_remember(
-                    id="movie_oak",
-                    type="movie",
-                    canonical_name="Oaky Movie",
-                    description="A movie that should not accept wine attributes.",
-                    attributes={"oak": 0.7},
-                )
+    def test_remember_ignores_invalid_client_attributes(self) -> None:
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={
+                "attributes": {
+                    "suspenseful": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.5, "upper": 0.9},
+                    },
+                },
+                "notes": "",
+                "metadata": {},
+            },
+        ):
+            server.palate_remember(
+                id="movie_oak",
+                type="movie",
+                canonical_name="Oaky Movie",
+                description="A movie that should not accept wine attributes.",
+                attributes={"oak": 0.7},
+                attribute_intervals_95={"oak": {"lower": 0.9, "upper": 0.4}},
+                fetch_external_ratings=False,
+            )
 
-        self.assertIn("attributes for movie", str(caught.exception))
-        self.assertIn("oak", str(caught.exception))
-
-    def test_remember_rejects_old_wine_attributes_before_llm_call(self) -> None:
-        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
-            with self.assertRaises(ValueError) as caught:
-                server.palate_remember(
-                    id="wine_old_attribute",
-                    type="wine",
-                    canonical_name="Old Attribute Wine",
-                    description="A wine with an old attribute.",
-                    attributes={"richness": 0.7},
-                )
-
-        self.assertIn("attributes for wine", str(caught.exception))
-        self.assertIn("richness", str(caught.exception))
-
-    def test_remember_rejects_invalid_attribute_interval_before_llm_call(self) -> None:
-        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
-            with self.assertRaises(ValueError) as caught:
-                server.palate_remember(
-                    id="wine_bad_interval",
-                    type="wine",
-                    canonical_name="Bad Interval Wine",
-                    description="A wine with a bad interval.",
-                    attributes={"oak": 0.7},
-                    attribute_intervals_95={"oak": {"lower": 0.9, "upper": 0.4}},
-                )
-
-        self.assertIn("attribute 95% interval for oak", str(caught.exception))
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "movie_oak"
+        )
+        self.assertNotIn("oak", stored["attributes"])
+        self.assertEqual(stored["attributes"]["suspenseful"], 0.7)
+        self.assertEqual(
+            stored["attribute_intervals_95"]["suspenseful"],
+            {"lower": 0.5, "upper": 0.9},
+        )
 
     def test_remember_rejects_rating_outside_ten_point_scale_before_llm_call(self) -> None:
         with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):

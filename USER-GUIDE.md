@@ -32,6 +32,10 @@ Use Palate to:
 Do not invent Palate memories or explanations. If Palate returns ranked results,
 explain only using the signals Palate returned. If an option is not known to
 Palate, say it is unmatched instead of replacing it with a different stored item.
+When remembering an item and my experience or score is missing, ask one
+follow-up: "How do you rate it from 1-10? Answer no if you have not tried it."
+For movies and series, treat "tried it" as "watched it." Do not send manual
+attributes; Palate derives attributes from the description.
 ```
 
 If the client does not use Palate automatically, name it directly:
@@ -264,22 +268,21 @@ Best practice:
 - Give the canonical name.
 - Give the entity type.
 - Give a description. Palate requires this for every new memory.
-- Before calling `palate_remember`, ask whether the user has watched the
-  movie/series or tried the item. If yes, ask for the user's 1-10 score and
-  include it as `rating`.
-- For movies and series, use `watched`. For other record types, use `tried`.
-- If the user has not watched/tried it, do not include a personal rating.
-- If watched/tried status or score is missing, ask a follow-up instead of
-  guessing.
+- Before calling `palate_remember`, ask one follow-up when experience or score
+  is missing: "How do you rate it from 1-10? Answer no if you have not tried
+  it." For movies and series, "tried it" means "watched it."
+- If the user gives a number, include it as `rating`. Palate marks movies and
+  series as watched and other record types as tried when a rating is present.
+- If the user answers no, set `watched=false` for movies and series or
+  `tried=false` for other record types, and do not include a personal rating.
 - Include who recommended it, if relevant.
 - Include concrete notes. Palate can normalize those notes into its fixed
   attributes with a 95% interval for each attribute value.
-- If you pass manual attributes to `palate_remember`, include
-  `attribute_intervals_95` when the value is uncertain. Omitted manual
-  intervals default to the exact value.
-- For movies and series, include watched status and your own rating when you
-  have seen it. If you provide your own rating, Palate marks the item as
-  watched.
+- Do not pass manual `attributes` or `attribute_intervals_95` to
+  `palate_remember`; Palate ignores client-supplied attributes and derives them
+  from the description.
+- For movies and series, include watched status or watched date when known. If
+  you provide your own rating, Palate marks the item as watched.
 - For music, include artist, album, personnel, and genre when known.
 
 The client LLM may create a stable internal ID for the item. If you want to be

@@ -23,7 +23,7 @@ from .media import (
 )
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
-from .schema import ENTITY_TYPES, attribute_keys_for_type, invalid_attribute_keys
+from .schema import ENTITY_TYPES, attribute_keys_for_type
 from .storage import attribute_interval_95, attribute_value, open_store
 
 
@@ -198,7 +198,7 @@ def palate_remember(
     imdb_id: str | None = None,
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
-    """Store memory; ask for watched/tried status and a 1-10 rating before calling."""
+    """Store memory; ask one 1-10 rating question, accepting "no" if not tried/watched."""
     if type not in ENTITY_TYPES:
         raise ValueError(f"type must be one of: {', '.join(ENTITY_TYPES)}")
     if not isinstance(description, str) or not description.strip():
@@ -218,22 +218,6 @@ def palate_remember(
         watched=watched,
         watched_at=watched_at,
     )
-    invalid_attributes = invalid_attribute_keys(type, attributes)
-    if invalid_attributes:
-        allowed = ", ".join(attribute_keys_for_type(type))
-        invalid = ", ".join(invalid_attributes)
-        raise ValueError(
-            f"attributes for {type} must be one of: {allowed}. Invalid: {invalid}"
-        )
-    invalid_intervals = invalid_attribute_keys(type, attribute_intervals_95)
-    if invalid_intervals:
-        allowed = ", ".join(attribute_keys_for_type(type))
-        invalid = ", ".join(invalid_intervals)
-        raise ValueError(
-            f"attribute_intervals_95 for {type} must be one of: {allowed}. Invalid: {invalid}"
-        )
-    validate_attribute_intervals_95(attribute_intervals_95)
-
     enrichment = normalize_enrichment(description, type)
     allowed_attributes = set(attribute_keys_for_type(type))
     normalized_attribute_payload = {
@@ -293,8 +277,8 @@ def palate_remember(
             "source_text": description,
             "notes": notes if notes is not None else enrichment["notes"],
             "metadata": metadata,
-            "attributes": {**normalized_attribute_payload, **(attributes or {})},
-            "attribute_intervals_95": attribute_intervals_95 or {},
+            "attributes": normalized_attribute_payload,
+            "attribute_intervals_95": normalized_attribute_intervals_95,
             "signals": signals,
         }
     )
@@ -464,31 +448,6 @@ def validate_experience_signal(
         raise ValueError("tried cannot be false when rating is provided.")
     if rating is not None and is_media_type(entity_type) and watched is False:
         raise ValueError("watched cannot be false when rating is provided.")
-
-
-def validate_attribute_intervals_95(
-    attribute_intervals_95: dict[str, dict[str, float]] | None,
-) -> None:
-    for key, interval in (attribute_intervals_95 or {}).items():
-        if not isinstance(interval, dict):
-            raise ValueError(
-                f"attribute 95% interval for {key} must include lower and upper."
-            )
-        try:
-            lower = float(interval["lower"])
-            upper = float(interval["upper"])
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"attribute 95% interval for {key} must be numeric."
-            ) from None
-        except KeyError:
-            raise ValueError(
-                f"attribute 95% interval for {key} must include lower and upper."
-            ) from None
-        if not 0 <= lower <= 1 or not 0 <= upper <= 1 or lower > upper:
-            raise ValueError(
-                f"attribute 95% interval for {key} must be between 0 and 1 with lower <= upper."
-            )
 
 
 def should_store_tried_signal(
