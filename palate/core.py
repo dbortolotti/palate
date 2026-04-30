@@ -100,8 +100,8 @@ def score_entity(
             except (TypeError, ValueError):
                 rating = None
             if rating is not None:
-                facts["preference"] = max(facts["preference"], (rating - 3) / 2)
-                facts["signal_facts"].append(f"rating {rating:g}/5")
+                facts["preference"] = max(facts["preference"], rating_preference(rating))
+                facts["signal_facts"].append(f"rating {rating:g}/10")
                 if avoid_below and rating < avoid_below:
                     facts["excluded"] = True
                     facts["negative_signals"].append(f"rating below {avoid_below:g}")
@@ -237,6 +237,12 @@ def tokenize(value: str) -> list[str]:
 
 def normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def rating_preference(rating: float) -> float:
+    # Preserves old 1-5 behavior after migration:
+    # 2/4/6/8/10 map to -1/-0.5/0/0.5/1.
+    return max(-1.0, min(1.0, (rating - 6) / 4))
 
 
 STOP_WORDS = {

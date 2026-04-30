@@ -23,7 +23,7 @@ The core system owns:
 
 Movie and series memories can store structured metadata plus OMDb-backed IMDb
 and Rotten Tomatoes critic ratings. External ratings are stored as reference
-metadata only; the personal 1-5 `rating` signal remains the taste score.
+metadata only; the personal 1-10 `rating` signal remains the taste score.
 OMDb also fills country list, language, runtime, and series season count when available.
 Music memories can store artist, album, personnel, and genre metadata.
 

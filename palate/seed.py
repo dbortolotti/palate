@@ -20,7 +20,7 @@ ITEMS = [
             "indulgent": 0.75,
         },
         "signals": [
-            {"type": "rating", "value": 5},
+            {"type": "rating", "value": 10},
             {"type": "tried", "value": True},
             {"type": "saved", "value": True},
         ],
@@ -38,7 +38,7 @@ ITEMS = [
             "classic": 0.82,
         },
         "signals": [
-            {"type": "rating", "value": 4},
+            {"type": "rating", "value": 8},
             {"type": "recommended_by", "value": "Mike"},
         ],
     },
@@ -55,7 +55,7 @@ ITEMS = [
             "classic": 0.65,
         },
         "signals": [
-            {"type": "rating", "value": 5},
+            {"type": "rating", "value": 10},
             {"type": "saved", "value": True},
         ],
     },
@@ -66,7 +66,7 @@ ITEMS = [
         "notes": "London view, lively room, late-night energy.",
         "attributes": {"view": 0.95, "lively": 0.86, "casual": 0.48, "novelty": 0.7},
         "signals": [
-            {"type": "rating", "value": 3},
+            {"type": "rating", "value": 6},
             {"type": "saved", "value": True},
         ],
     },
@@ -88,7 +88,7 @@ ITEMS = [
             "comfort": 0.72,
         },
         "signals": [
-            {"type": "rating", "value": 5},
+            {"type": "rating", "value": 10},
             {"type": "tried", "value": True},
         ],
     },
@@ -99,7 +99,7 @@ ITEMS = [
         "notes": "Rich, classic, medium-full cigar.",
         "attributes": {"richness": 0.82, "intensity": 0.76, "classic": 0.8, "indulgent": 0.7},
         "signals": [
-            {"type": "rating", "value": 4},
+            {"type": "rating", "value": 8},
             {"type": "recommended_by", "value": "Alex"},
         ],
     },
@@ -133,7 +133,7 @@ ITEMS = [
             "action": 0.74,
         },
         "signals": [
-            {"type": "rating", "value": 5},
+            {"type": "rating", "value": 10},
             {"type": "tried", "value": True},
         ],
     },

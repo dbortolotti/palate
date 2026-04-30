@@ -25,7 +25,7 @@ class BackupBehaviorTest(unittest.TestCase):
                 "type": "wine",
                 "canonical_name": "Backup Wine",
                 "attributes": {"oak": 0.7},
-                "signals": [{"type": "rating", "value": 4}],
+                "signals": [{"type": "rating", "value": 8}],
             }
         )
 

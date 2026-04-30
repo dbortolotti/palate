@@ -78,11 +78,15 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             "search_text": "",
         }
 
-        with patch("palate.llm.json_response", return_value=response):
+        with patch("palate.llm.json_response", return_value=response) as json_response:
             intent = parse_intent("a suspenseful movie")
 
+        min_rating_schema = json_response.call_args.kwargs["schema"]["properties"][
+            "filters"
+        ]["properties"]["min_rating"]
         self.assertEqual(intent["attributes"], ["suspenseful"])
         self.assertEqual(intent["context"], {"suspenseful": True})
+        self.assertEqual(min_rating_schema["maximum"], 10)
 
 
 if __name__ == "__main__":

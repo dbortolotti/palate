@@ -79,7 +79,7 @@ def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str,
                         "min_rating": {
                             "type": ["number", "null"],
                             "minimum": 1,
-                            "maximum": 5,
+                            "maximum": 10,
                         },
                         "recommended_by": {"type": ["string", "null"]},
                     },

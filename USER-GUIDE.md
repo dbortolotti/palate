@@ -112,7 +112,7 @@ funk, hip_hop, jazz, latin, metal, pop, punk, r_and_b, reggae, rock, soul,
 soundtrack, world
 ```
 
-Your own 1-5 `rating` remains the personal taste signal. IMDb and Rotten
+Your own 1-10 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between
 otherwise similar Palate matches.
 
@@ -148,7 +148,7 @@ Helpful details to include:
 Example with filters:
 
 ```text
-Use Palate. Find wines rated at least 4/5 that Mike recommended and that fit
+Use Palate. Find wines rated at least 8/10 that Mike recommended and that fit
 an indulgent evening.
 ```
 
@@ -205,18 +205,18 @@ Good prompts:
 Use Palate to remember this wine:
 Name: Ridge Estate Cabernet 2019
 Type: wine
-Rating: 4.5/5
+Rating: 9/10
 Notes: premium, structured, cedar, oak, long finish
 Recommended by: Mike
 ```
 
 ```text
-Use Palate to remember Skyline Room as a restaurant. I liked it: 4/5. Notes:
+Use Palate to remember Skyline Room as a restaurant. I liked it: 8/10. Notes:
 quiet, great city view, good for low-energy evenings.
 ```
 
 ```text
-Use Palate to remember Alex's Syrah as a wine with rating 2/5. Notes: too
+Use Palate to remember Alex's Syrah as a wine with rating 4/10. Notes: too
 heavy for me, intense, not a good fit for low-energy evenings.
 ```
 
@@ -225,7 +225,7 @@ Use Palate to remember this watched movie:
 Name: Heat
 Type: movie
 Description: intense, precise, classic Los Angeles crime film
-Rating: 5/5
+Rating: 10/10
 Watched: true
 Director: Michael Mann
 Main actors: Al Pacino, Robert De Niro, Val Kilmer
@@ -252,7 +252,7 @@ Artist: Miles Davis
 Album: Kind of Blue
 Personnel: Miles Davis, John Coltrane, Cannonball Adderley, Bill Evans
 Genre: jazz
-Rating: 5/5
+Rating: 10/10
 ```
 
 Best practice:
@@ -274,7 +274,7 @@ explicit, you can provide one:
 
 ```text
 Use Palate to remember this as id wine_ridge_estate_cabernet_2019:
-Ridge Estate Cabernet 2019, wine, 4.5/5, premium and oaky.
+Ridge Estate Cabernet 2019, wine, 9/10, premium and oaky.
 ```
 
 ### Recall Something Fuzzy
@@ -568,7 +568,7 @@ Gaja Barbaresco 2018
 ```
 
 ```text
-Use Palate to remember Noble Rot as a restaurant, 4.5/5, classic, comfortable,
+Use Palate to remember Noble Rot as a restaurant, 9/10, classic, comfortable,
 good wine list, not too lively.
 ```
 

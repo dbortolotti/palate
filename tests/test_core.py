@@ -79,7 +79,7 @@ class CoreBehaviorTest(unittest.TestCase):
     def test_min_rating_filter_excludes_low_rated_items(self) -> None:
         intent = base_intent(
             entity_type="restaurant",
-            filters={"min_rating": 5, "recommended_by": None},
+            filters={"min_rating": 10, "recommended_by": None},
         )
         retrieval = retrieve_candidates(self.store, intent)
         ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
@@ -201,7 +201,7 @@ class CoreBehaviorTest(unittest.TestCase):
                         "rotten_tomatoes": {"critic_score": 60},
                     },
                 },
-                "signals": [{"type": "rating", "value": 5}],
+                "signals": [{"type": "rating", "value": 10}],
             }
         )
         self.store.upsert_entity(
@@ -233,7 +233,7 @@ class CoreBehaviorTest(unittest.TestCase):
                 "type": "restaurant",
                 "canonical_name": "Context View",
                 "attributes": {"view": 0.9},
-                "signals": [{"type": "rating", "value": 4}],
+                "signals": [{"type": "rating", "value": 8}],
             }
         )
         self.store.upsert_entity(
@@ -242,7 +242,7 @@ class CoreBehaviorTest(unittest.TestCase):
                 "type": "restaurant",
                 "canonical_name": "Context Plain",
                 "attributes": {"quiet": 0.9},
-                "signals": [{"type": "rating", "value": 4}],
+                "signals": [{"type": "rating", "value": 8}],
             }
         )
         intent = base_intent(entity_type="restaurant", context={"view": True})
@@ -285,7 +285,7 @@ class CoreBehaviorTest(unittest.TestCase):
                     "type": "wine",
                     "canonical_name": f"Extra Wine {index}",
                     "attributes": {"oak": 0.5},
-                    "signals": [{"type": "rating", "value": 4}],
+                    "signals": [{"type": "rating", "value": 8}],
                 }
             )
 
@@ -316,7 +316,7 @@ def seed_store(store) -> None:
             "notes": "Cedar, oak, and premium structure.",
             "attributes": {"oak": 0.8, "premium": 0.7},
             "signals": [
-                {"type": "rating", "value": 4},
+                {"type": "rating", "value": 8},
                 {"type": "recommended_by", "value": "Mike"},
             ],
         }
@@ -329,7 +329,7 @@ def seed_store(store) -> None:
             "notes": "Rich and intense.",
             "attributes": {"richness": 0.85, "intensity": 0.8},
             "signals": [
-                {"type": "rating", "value": 5},
+                {"type": "rating", "value": 10},
                 {"type": "recommended_by", "value": "Alex"},
             ],
         }
@@ -341,7 +341,7 @@ def seed_store(store) -> None:
             "canonical_name": "Skyline Room",
             "notes": "Quiet place with a city view.",
             "attributes": {"view": 0.95, "quiet": 0.6},
-            "signals": [{"type": "rating", "value": 4}],
+            "signals": [{"type": "rating", "value": 8}],
         }
     )
     store.upsert_entity(
@@ -351,7 +351,7 @@ def seed_store(store) -> None:
             "canonical_name": "Loud Counter",
             "notes": "Lively casual dinner.",
             "attributes": {"lively": 0.9, "casual": 0.7},
-            "signals": [{"type": "rating", "value": 5}],
+            "signals": [{"type": "rating", "value": 10}],
         }
     )
 

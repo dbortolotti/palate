@@ -202,6 +202,13 @@ def palate_remember(
     if not isinstance(description, str) or not description.strip():
         raise ValueError("description is required and must not be blank.")
     description = description.strip()
+    if rating is not None:
+        try:
+            rating = float(rating)
+        except (TypeError, ValueError):
+            raise ValueError("rating must be a number between 1 and 10.") from None
+        if not 1 <= rating <= 10:
+            raise ValueError("rating must be between 1 and 10.")
     invalid_attributes = invalid_attribute_keys(type, attributes)
     if invalid_attributes:
         allowed = ", ".join(attribute_keys_for_type(type))

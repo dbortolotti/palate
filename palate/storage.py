@@ -25,6 +25,8 @@ def open_store(db_path: str | None = None) -> "PalateStore":
 def migrate(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
+        DROP INDEX IF EXISTS signals_entity_type_value_provenance_unique;
+
         CREATE TABLE IF NOT EXISTS entities (
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
@@ -60,9 +62,6 @@ def migrate(conn: sqlite3.Connection) -> None:
           GROUP BY entity_id, type, value, COALESCE(provenance, '')
         );
 
-        CREATE UNIQUE INDEX IF NOT EXISTS signals_entity_type_value_provenance_unique
-        ON signals (entity_id, type, value, COALESCE(provenance, ''));
-
         CREATE TABLE IF NOT EXISTS decisions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           query TEXT NOT NULL,
@@ -71,6 +70,11 @@ def migrate(conn: sqlite3.Connection) -> None:
           ranked_json TEXT NOT NULL,
           chosen_entity_id TEXT,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          key TEXT PRIMARY KEY,
+          applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
@@ -82,7 +86,53 @@ def migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE entities ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'"
         )
+    migrate_rating_signals_to_ten_point_scale(conn)
+    conn.execute(
+        """
+        DELETE FROM signals
+        WHERE id NOT IN (
+          SELECT MIN(id)
+          FROM signals
+          GROUP BY entity_id, type, value, COALESCE(provenance, '')
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS signals_entity_type_value_provenance_unique
+        ON signals (entity_id, type, value, COALESCE(provenance, ''))
+        """
+    )
     conn.commit()
+
+
+def migrate_rating_signals_to_ten_point_scale(conn: sqlite3.Connection) -> None:
+    migration_key = "rating_scale_1_to_10"
+    applied = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE key = ?",
+        (migration_key,),
+    ).fetchone()
+    if applied is not None:
+        return
+
+    rows = conn.execute("SELECT id, value FROM signals WHERE type = 'rating'").fetchall()
+    for row in rows:
+        row_id = row["id"] if isinstance(row, sqlite3.Row) else row[0]
+        value = row["value"] if isinstance(row, sqlite3.Row) else row[1]
+        try:
+            rating = float(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= rating <= 5:
+            conn.execute(
+                "UPDATE signals SET value = ? WHERE id = ?",
+                (format_signal_number(rating * 2), row_id),
+            )
+
+    conn.execute(
+        "INSERT INTO schema_migrations (key) VALUES (?)",
+        (migration_key,),
+    )
 
 
 class PalateStore:
@@ -283,6 +333,10 @@ def normalize(value: Any) -> str:
 
 def clamp01(value: Any) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def format_signal_number(value: float) -> str:
+    return f"{value:g}"
 
 
 def parse_metadata(value: Any) -> dict[str, Any]:

@@ -98,6 +98,54 @@ class StorageBehaviorTest(unittest.TestCase):
         wine = reopened.list_entities()[0]
 
         self.assertEqual(len(wine["signals"]), 2)
+        signals_by_type = {signal["type"]: signal["value"] for signal in wine["signals"]}
+        self.assertEqual(signals_by_type["rating"], "8")
+
+    def test_migration_converts_existing_rating_signals_to_ten_point_scale_once(self) -> None:
+        raw_db_path = self.temp_dir / "raw_rating_scale.sqlite"
+        conn = sqlite3.connect(raw_db_path)
+        conn.executescript(
+            """
+            CREATE TABLE entities (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL,
+              canonical_name TEXT NOT NULL,
+              source_text TEXT,
+              notes TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE signals (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              entity_id TEXT NOT NULL,
+              type TEXT NOT NULL,
+              value TEXT NOT NULL,
+              provenance TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            INSERT INTO entities (id, type, canonical_name)
+            VALUES ('wine_old_rating', 'wine', 'Old Rating Wine');
+
+            INSERT INTO signals (entity_id, type, value, provenance)
+            VALUES
+              ('wine_old_rating', 'rating', '4.5', NULL),
+              ('wine_old_rating', 'recommended_by', 'Mike', NULL);
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        reopened = open_store(str(raw_db_path))
+        reopened = open_store(str(raw_db_path))
+        wine = reopened.list_entities()[0]
+        ratings = [
+            signal["value"]
+            for signal in wine["signals"]
+            if signal["type"] == "rating"
+        ]
+
+        self.assertEqual(ratings, ["9"])
 
     def test_migration_adds_empty_metadata_to_existing_database(self) -> None:
         raw_db_path = self.temp_dir / "raw_metadata.sqlite"
@@ -151,7 +199,7 @@ class StorageBehaviorTest(unittest.TestCase):
                 "type": "wine",
                 "canonical_name": "Delete Wine",
                 "attributes": {"oak": 0.8},
-                "signals": [{"type": "rating", "value": 4}],
+                "signals": [{"type": "rating", "value": 8}],
             }
         )
 

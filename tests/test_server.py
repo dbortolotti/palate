@@ -123,7 +123,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 canonical_name="New Wine",
                 description="rich and oaky",
                 attributes={"oak": 0.9},
-                rating=5,
+                rating=10,
                 recommended_by="Sam",
             )
 
@@ -172,7 +172,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 type="movie",
                 canonical_name="Manual Movie",
                 description="A precise thriller.",
-                rating=4,
+                rating=8,
                 synopsis="A precise thriller.",
                 main_actors=["Actor One", "Actor Two"],
                 director="Director One",
@@ -356,6 +356,19 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIn("attributes for movie", str(caught.exception))
         self.assertIn("oak", str(caught.exception))
 
+    def test_remember_rejects_rating_outside_ten_point_scale_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as caught:
+                server.palate_remember(
+                    id="wine_bad_rating",
+                    type="wine",
+                    canonical_name="Bad Rating",
+                    description="A wine with an invalid rating.",
+                    rating=11,
+                )
+
+        self.assertIn("between 1 and 10", str(caught.exception))
+
     def test_log_decision_updates_existing_decision(self) -> None:
         decision_id = self.store.log_decision("which wine", {}, [], [])
 
@@ -391,7 +404,7 @@ def seed_server_store(store) -> None:
             "notes": "Cedar, oak, and premium structure.",
             "attributes": {"oak": 0.8, "premium": 0.7},
             "signals": [
-                {"type": "rating", "value": 4},
+                {"type": "rating", "value": 8},
                 {"type": "recommended_by", "value": "Mike"},
             ],
         }
@@ -403,7 +416,7 @@ def seed_server_store(store) -> None:
             "canonical_name": "Skyline Room",
             "notes": "Quiet place with a city view.",
             "attributes": {"view": 0.95, "quiet": 0.6},
-            "signals": [{"type": "rating", "value": 4}],
+            "signals": [{"type": "rating", "value": 8}],
         }
     )
 
