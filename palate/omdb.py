@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+import certifi
 
 from .media import empty_media_metadata, is_media_type, normalize_float, normalize_int
 
@@ -45,7 +48,7 @@ def fetch_omdb_metadata(
             f"{OMDB_URL}?{urlencode(params)}",
             headers={"Accept": "application/json", "User-Agent": "palate/0.1"},
         )
-        with urlopen(request, timeout=timeout) as response:
+        with urlopen(request, timeout=timeout, context=ssl_context()) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         return {
@@ -64,6 +67,10 @@ def fetch_omdb_metadata(
     if not has_external_rating(metadata):
         warnings.append("OMDb returned no IMDb or Rotten Tomatoes rating.")
     return {"metadata": metadata, "warnings": warnings}
+
+
+def ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def omdb_payload_to_metadata(payload: dict[str, Any]) -> dict[str, Any]:

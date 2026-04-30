@@ -58,6 +58,7 @@ class OmdbBehaviorTest(unittest.TestCase):
             83,
         )
         self.assertEqual(result["warnings"], [])
+        self.assertIn("context", urlopen.call_args.kwargs)
 
     def test_lookup_by_title_uses_media_type_and_warns_when_ratings_absent(self) -> None:
         payload = {
