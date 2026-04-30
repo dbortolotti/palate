@@ -80,7 +80,7 @@ Movies and series can also store structured metadata:
 - synopsis
 - main actors
 - director
-- country
+- country list
 - language
 - genre
 - runtime in minutes

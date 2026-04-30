@@ -52,7 +52,7 @@ class OmdbBehaviorTest(unittest.TestCase):
         self.assertEqual(metadata["synopsis"], "A detective pursues a crew of thieves.")
         self.assertEqual(metadata["main_actors"], ["Al Pacino", "Robert De Niro"])
         self.assertEqual(metadata["director"], "Michael Mann")
-        self.assertEqual(metadata["country"], "United States")
+        self.assertEqual(metadata["country"], ["United States"])
         self.assertEqual(metadata["language"], ["English", "Spanish"])
         self.assertEqual(metadata["genre"], ["crime", "drama"])
         self.assertEqual(metadata["runtime"], 170)

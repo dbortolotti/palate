@@ -86,7 +86,7 @@ def omdb_payload_to_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     metadata["synopsis"] = omdb_string(payload.get("Plot"))
     metadata["main_actors"] = omdb_list(payload.get("Actors"))
     metadata["director"] = omdb_string(payload.get("Director"))
-    metadata["country"] = omdb_string(payload.get("Country"))
+    metadata["country"] = omdb_list(payload.get("Country"))
     metadata["language"] = omdb_list(payload.get("Language"))
     metadata["genre"] = omdb_list(payload.get("Genre"))
     metadata["runtime"] = payload.get("Runtime")

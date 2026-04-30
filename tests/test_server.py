@@ -176,7 +176,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 synopsis="A precise thriller.",
                 main_actors=["Actor One", "Actor Two"],
                 director="Director One",
-                country="United Kingdom",
+                country=["United Kingdom"],
                 language=["English", "French"],
                 genre=["Thriller"],
                 runtime=104,
@@ -191,7 +191,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(stored["metadata"]["synopsis"], "A precise thriller.")
         self.assertEqual(stored["metadata"]["main_actors"], ["Actor One", "Actor Two"])
         self.assertEqual(stored["metadata"]["director"], "Director One")
-        self.assertEqual(stored["metadata"]["country"], "United Kingdom")
+        self.assertEqual(stored["metadata"]["country"], ["United Kingdom"])
         self.assertEqual(stored["metadata"]["language"], ["English", "French"])
         self.assertEqual(stored["metadata"]["genre"], ["thriller"])
         self.assertEqual(stored["metadata"]["runtime"], 104)

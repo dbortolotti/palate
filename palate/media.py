@@ -129,7 +129,7 @@ def empty_media_metadata() -> dict[str, Any]:
         "synopsis": None,
         "main_actors": [],
         "director": None,
-        "country": None,
+        "country": [],
         "language": [],
         "genre": [],
         "runtime": None,
@@ -295,12 +295,13 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
     music = normalize_music_metadata(metadata)
     parts: list[str] = []
 
-    for key in ["synopsis", "director", "country", "watched_at"]:
+    for key in ["synopsis", "director", "watched_at"]:
         value = normalized.get(key)
         if value:
             parts.append(str(value))
 
     parts.extend(normalized["main_actors"])
+    parts.extend(normalized["country"])
     parts.extend(normalized["language"])
     parts.extend(normalized["genre"])
     if normalized["runtime"]:
@@ -351,6 +352,8 @@ def set_path(mapping: dict[str, Any], path: tuple[str, ...], value: Any) -> None
 
 def normalize_media_value(path: tuple[str, ...], value: Any) -> Any:
     if path == ("main_actors",):
+        return normalize_string_list(value)
+    if path == ("country",):
         return normalize_string_list(value)
     if path == ("language",):
         return normalize_string_list(value)

@@ -306,7 +306,7 @@ def media_metadata_schema() -> dict[str, Any]:
             "synopsis": {"type": ["string", "null"]},
             "main_actors": {"type": "array", "items": {"type": "string"}},
             "director": {"type": ["string", "null"]},
-            "country": {"type": ["string", "null"]},
+            "country": {"type": "array", "items": {"type": "string"}},
             "language": {"type": "array", "items": {"type": "string"}},
             "genre": {
                 "type": "array",

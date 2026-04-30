@@ -115,7 +115,7 @@ class CoreBehaviorTest(unittest.TestCase):
                     "synopsis": "A thief enters dreams to plant an idea.",
                     "main_actors": ["Leonardo DiCaprio"],
                     "director": "Christopher Nolan",
-                    "country": "United States",
+                    "country": ["United States"],
                     "genre": ["Sci-Fi", "Thriller"],
                     "external_ids": {"imdb_id": "tt1375666"},
                 },
