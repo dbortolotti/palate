@@ -205,19 +205,20 @@ Good prompts:
 Use Palate to remember this wine:
 Name: Ridge Estate Cabernet 2019
 Type: wine
+Tried: true
 Rating: 9/10
 Notes: premium, structured, cedar, oak, long finish
 Recommended by: Mike
 ```
 
 ```text
-Use Palate to remember Skyline Room as a restaurant. I liked it: 8/10. Notes:
-quiet, great city view, good for low-energy evenings.
+Use Palate to remember Skyline Room as a restaurant. Tried: true. I liked it:
+8/10. Notes: quiet, great city view, good for low-energy evenings.
 ```
 
 ```text
-Use Palate to remember Alex's Syrah as a wine with rating 4/10. Notes: too
-heavy for me, intense, not a good fit for low-energy evenings.
+Use Palate to remember Alex's Syrah as a wine. Tried: true. Rating: 4/10.
+Notes: too heavy for me, intense, not a good fit for low-energy evenings.
 ```
 
 ```text
@@ -252,6 +253,7 @@ Artist: Miles Davis
 Album: Kind of Blue
 Personnel: Miles Davis, John Coltrane, Cannonball Adderley, Bill Evans
 Genre: jazz
+Tried: true
 Rating: 10/10
 ```
 
@@ -260,7 +262,13 @@ Best practice:
 - Give the canonical name.
 - Give the entity type.
 - Give a description. Palate requires this for every new memory.
-- Include a rating if you have one.
+- Before calling `palate_remember`, ask whether the user has watched the
+  movie/series or tried the item. If yes, ask for the user's 1-10 score and
+  include it as `rating`.
+- For movies and series, use `watched`. For other record types, use `tried`.
+- If the user has not watched/tried it, do not include a personal rating.
+- If watched/tried status or score is missing, ask a follow-up instead of
+  guessing.
 - Include who recommended it, if relevant.
 - Include concrete notes. Palate can normalize those notes into its fixed
   attributes.
@@ -274,7 +282,7 @@ explicit, you can provide one:
 
 ```text
 Use Palate to remember this as id wine_ridge_estate_cabernet_2019:
-Ridge Estate Cabernet 2019, wine, 9/10, premium and oaky.
+Ridge Estate Cabernet 2019, wine, tried, 9/10, premium and oaky.
 ```
 
 ### Recall Something Fuzzy
@@ -568,8 +576,8 @@ Gaja Barbaresco 2018
 ```
 
 ```text
-Use Palate to remember Noble Rot as a restaurant, 9/10, classic, comfortable,
-good wine list, not too lively.
+Use Palate to remember Noble Rot as a restaurant, tried, 9/10, classic,
+comfortable, good wine list, not too lively.
 ```
 
 ```text

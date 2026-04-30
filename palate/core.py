@@ -3,7 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .media import external_rating_facts, external_rating_tiebreak, metadata_search_text
+from .media import (
+    external_rating_facts,
+    external_rating_tiebreak,
+    is_media_type,
+    metadata_search_text,
+)
 
 
 def retrieve_candidates(
@@ -124,7 +129,12 @@ def score_entity(
 
         if signal_type == "tried":
             facts["familiarity"] += 0.1
-            facts["signal_facts"].append("tried before")
+            fact = (
+                "watched before"
+                if is_media_type(entity.get("type"))
+                else "tried before"
+            )
+            facts["signal_facts"].append(fact)
 
     if recommended_by and not matched_recommended_by:
         facts["excluded"] = True

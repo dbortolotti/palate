@@ -178,6 +178,7 @@ def palate_remember(
     description: str,
     attributes: dict[str, float] | None = None,
     rating: float | None = None,
+    tried: bool | None = None,
     recommended_by: str | None = None,
     notes: str | None = None,
     artist: str | None = None,
@@ -196,7 +197,7 @@ def palate_remember(
     imdb_id: str | None = None,
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
-    """Store an explicit Palate memory and normalize required description text."""
+    """Store memory; ask for watched/tried status and a 1-10 rating before calling."""
     if type not in ENTITY_TYPES:
         raise ValueError(f"type must be one of: {', '.join(ENTITY_TYPES)}")
     if not isinstance(description, str) or not description.strip():
@@ -209,6 +210,13 @@ def palate_remember(
             raise ValueError("rating must be a number between 1 and 10.") from None
         if not 1 <= rating <= 10:
             raise ValueError("rating must be between 1 and 10.")
+    validate_experience_signal(
+        entity_type=type,
+        rating=rating,
+        tried=tried,
+        watched=watched,
+        watched_at=watched_at,
+    )
     invalid_attributes = invalid_attribute_keys(type, attributes)
     if invalid_attributes:
         allowed = ", ".join(attribute_keys_for_type(type))
@@ -249,6 +257,14 @@ def palate_remember(
     signals = []
     if rating is not None:
         signals.append({"type": "rating", "value": rating})
+    if should_store_tried_signal(
+        entity_type=type,
+        rating=rating,
+        tried=tried,
+        watched=watched,
+        watched_at=watched_at,
+    ):
+        signals.append({"type": "tried", "value": True})
     if recommended_by:
         signals.append({"type": "recommended_by", "value": recommended_by})
 
@@ -408,6 +424,42 @@ def prepare_entity_metadata(
         imdb_id=imdb_id,
         fetch_external_ratings=fetch_external_ratings,
     )
+
+
+def validate_experience_signal(
+    *,
+    entity_type: str,
+    rating: float | None,
+    tried: bool | None,
+    watched: bool | None,
+    watched_at: str | None,
+) -> None:
+    has_media_experience = is_media_type(entity_type) and (
+        watched is True or watched_at is not None
+    )
+    has_generic_experience = tried is True
+    if rating is None and (has_media_experience or has_generic_experience):
+        experience = "watched" if has_media_experience else "tried"
+        raise ValueError(f"rating is required when {experience} is true.")
+    if rating is not None and tried is False:
+        raise ValueError("tried cannot be false when rating is provided.")
+    if rating is not None and is_media_type(entity_type) and watched is False:
+        raise ValueError("watched cannot be false when rating is provided.")
+
+
+def should_store_tried_signal(
+    *,
+    entity_type: str,
+    rating: float | None,
+    tried: bool | None,
+    watched: bool | None,
+    watched_at: str | None,
+) -> bool:
+    if tried is True:
+        return True
+    if rating is not None:
+        return True
+    return is_media_type(entity_type) and (watched is True or watched_at is not None)
 
 
 def prepare_music_metadata(

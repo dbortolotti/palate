@@ -131,7 +131,10 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertTrue(result["stored"])
         self.assertEqual(stored["attributes"]["oak"], 0.9)
         self.assertEqual(stored["attributes"]["premium"], 0.4)
-        self.assertEqual({signal["type"] for signal in stored["signals"]}, {"rating", "recommended_by"})
+        self.assertEqual(
+            {signal["type"] for signal in stored["signals"]},
+            {"rating", "tried", "recommended_by"},
+        )
 
     def test_remember_accepts_movie_and_series_types(self) -> None:
         with patch.object(
@@ -197,6 +200,36 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(stored["metadata"]["runtime"], 104)
         self.assertEqual(stored["metadata"]["seasons"], 1)
         self.assertEqual(stored["metadata"]["external_ids"]["imdb_id"], "tt7654321")
+        self.assertIn(
+            "tried",
+            {signal["type"] for signal in stored["signals"]},
+        )
+
+    def test_remember_stores_explicit_tried_signal(self) -> None:
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            server.palate_remember(
+                id="restaurant_tried",
+                type="restaurant",
+                canonical_name="Tried Restaurant",
+                description="A tried restaurant.",
+                tried=True,
+                rating=7,
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "restaurant_tried"
+        )
+
+        self.assertEqual(
+            {signal["type"] for signal in stored["signals"]},
+            {"rating", "tried"},
+        )
 
     def test_remember_stores_music_metadata(self) -> None:
         with patch.object(
@@ -368,6 +401,35 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 )
 
         self.assertIn("between 1 and 10", str(caught.exception))
+
+    def test_remember_rejects_tried_or_watched_without_rating_before_llm_call(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
+            with self.assertRaises(ValueError) as tried_error:
+                server.palate_remember(
+                    id="wine_tried_no_rating",
+                    type="wine",
+                    canonical_name="Tried No Rating",
+                    description="A tried item with no score.",
+                    tried=True,
+                )
+            with self.assertRaises(ValueError) as watched_error:
+                server.palate_remember(
+                    id="movie_watched_no_rating",
+                    type="movie",
+                    canonical_name="Watched No Rating",
+                    description="A watched movie with no score.",
+                    watched=True,
+                    fetch_external_ratings=False,
+                )
+
+        self.assertIn(
+            "rating is required when tried is true",
+            str(tried_error.exception),
+        )
+        self.assertIn(
+            "rating is required when watched is true",
+            str(watched_error.exception),
+        )
 
     def test_log_decision_updates_existing_decision(self) -> None:
         decision_id = self.store.log_decision("which wine", {}, [], [])
