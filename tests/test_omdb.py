@@ -24,7 +24,9 @@ class OmdbBehaviorTest(unittest.TestCase):
             "Actors": "Al Pacino, Robert De Niro",
             "Director": "Michael Mann",
             "Country": "United States",
+            "Language": "English, Spanish",
             "Genre": "Crime, Drama",
+            "Runtime": "170 min",
             "imdbID": "tt0113277",
             "imdbRating": "8.3",
             "imdbVotes": "740,000",
@@ -50,6 +52,11 @@ class OmdbBehaviorTest(unittest.TestCase):
         self.assertEqual(metadata["synopsis"], "A detective pursues a crew of thieves.")
         self.assertEqual(metadata["main_actors"], ["Al Pacino", "Robert De Niro"])
         self.assertEqual(metadata["director"], "Michael Mann")
+        self.assertEqual(metadata["country"], "United States")
+        self.assertEqual(metadata["language"], ["English", "Spanish"])
+        self.assertEqual(metadata["genre"], ["crime", "drama"])
+        self.assertEqual(metadata["runtime"], 170)
+        self.assertIsNone(metadata["seasons"])
         self.assertEqual(metadata["external_ids"]["imdb_id"], "tt0113277")
         self.assertEqual(metadata["external_ratings"]["imdb"]["rating"], 8.3)
         self.assertEqual(metadata["external_ratings"]["imdb"]["votes"], 740000)
@@ -68,7 +75,10 @@ class OmdbBehaviorTest(unittest.TestCase):
             "Actors": "Adam Scott, Britt Lower",
             "Director": "Ben Stiller",
             "Country": "United States",
+            "Language": "English",
             "Genre": "Drama, Mystery",
+            "Runtime": "50 min",
+            "totalSeasons": "2",
             "imdbID": "tt11280740",
             "imdbRating": "N/A",
             "imdbVotes": "N/A",
@@ -87,6 +97,10 @@ class OmdbBehaviorTest(unittest.TestCase):
         self.assertEqual(query["t"], ["Severance"])
         self.assertEqual(query["type"], ["series"])
         self.assertEqual(result["metadata"]["external_ids"]["imdb_id"], "tt11280740")
+        self.assertEqual(result["metadata"]["genre"], ["drama", "mystery"])
+        self.assertEqual(result["metadata"]["language"], ["English"])
+        self.assertEqual(result["metadata"]["runtime"], 50)
+        self.assertEqual(result["metadata"]["seasons"], 2)
         self.assertIsNone(result["metadata"]["external_ratings"]["imdb"]["rating"])
         self.assertIn("OMDb returned no IMDb or Rotten Tomatoes rating", result["warnings"][0])
 

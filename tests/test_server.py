@@ -177,7 +177,10 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 main_actors=["Actor One", "Actor Two"],
                 director="Director One",
                 country="United Kingdom",
+                language=["English", "French"],
                 genre=["Thriller"],
+                runtime=104,
+                seasons=1,
                 imdb_id="tt7654321",
                 fetch_external_ratings=False,
             )
@@ -189,8 +192,52 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(stored["metadata"]["main_actors"], ["Actor One", "Actor Two"])
         self.assertEqual(stored["metadata"]["director"], "Director One")
         self.assertEqual(stored["metadata"]["country"], "United Kingdom")
-        self.assertEqual(stored["metadata"]["genre"], ["Thriller"])
+        self.assertEqual(stored["metadata"]["language"], ["English", "French"])
+        self.assertEqual(stored["metadata"]["genre"], ["thriller"])
+        self.assertEqual(stored["metadata"]["runtime"], 104)
+        self.assertEqual(stored["metadata"]["seasons"], 1)
         self.assertEqual(stored["metadata"]["external_ids"]["imdb_id"], "tt7654321")
+
+    def test_remember_stores_music_metadata(self) -> None:
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={
+                "attributes": {"intellectual": 0.8},
+                "notes": "normalized",
+                "metadata": {
+                    "artist": "LLM Artist",
+                    "album": "LLM Album",
+                    "personnel": ["Player One"],
+                    "genre": ["jazz"],
+                },
+            },
+        ):
+            server.palate_remember(
+                id="music_kind_of_blue",
+                type="music",
+                canonical_name="Kind of Blue",
+                description="Miles Davis modal jazz album.",
+                artist="Miles Davis",
+                album="Kind of Blue",
+                personnel=["Miles Davis", "John Coltrane", "Bill Evans"],
+                genre=["Jazz", "Modal Jazz"],
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "music_kind_of_blue"
+        )
+
+        self.assertEqual(stored["metadata"]["artist"], "Miles Davis")
+        self.assertEqual(stored["metadata"]["album"], "Kind of Blue")
+        self.assertEqual(
+            stored["metadata"]["personnel"],
+            ["Miles Davis", "John Coltrane", "Bill Evans"],
+        )
+        self.assertEqual(stored["metadata"]["genre"], ["jazz"])
+        self.assertEqual(stored["attributes"]["intellectual"], 0.8)
 
     def test_remember_warns_when_omdb_key_is_missing(self) -> None:
         with patch.dict("os.environ", {"OMDB_API_KEY": ""}), patch.object(
@@ -274,7 +321,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
         )
 
         self.assertEqual(stored["metadata"]["director"], "Manual Director")
-        self.assertEqual(stored["metadata"]["genre"], ["Drama"])
+        self.assertEqual(stored["metadata"]["genre"], ["drama"])
 
     def test_remember_rejects_unknown_entity_type(self) -> None:
         with self.assertRaises(ValueError):

@@ -12,7 +12,13 @@ from urllib.request import Request, urlopen
 
 import certifi
 
-from .media import empty_media_metadata, is_media_type, normalize_float, normalize_int
+from .media import (
+    empty_media_metadata,
+    is_media_type,
+    normalize_float,
+    normalize_int,
+    normalize_media_metadata,
+)
 
 
 OMDB_URL = "https://www.omdbapi.com/"
@@ -81,7 +87,10 @@ def omdb_payload_to_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     metadata["main_actors"] = omdb_list(payload.get("Actors"))
     metadata["director"] = omdb_string(payload.get("Director"))
     metadata["country"] = omdb_string(payload.get("Country"))
+    metadata["language"] = omdb_list(payload.get("Language"))
     metadata["genre"] = omdb_list(payload.get("Genre"))
+    metadata["runtime"] = payload.get("Runtime")
+    metadata["seasons"] = payload.get("totalSeasons")
     metadata["external_ids"]["imdb_id"] = omdb_string(payload.get("imdbID"))
     metadata["external_ratings"]["imdb"]["rating"] = normalize_float(
         omdb_string(payload.get("imdbRating"))
@@ -93,7 +102,7 @@ def omdb_payload_to_metadata(payload: dict[str, Any]) -> dict[str, Any]:
         rotten_tomatoes_score(payload.get("Ratings"))
     )
     metadata["ratings_source"] = {"provider": "omdb", "fetched_at": fetched_at}
-    return metadata
+    return normalize_media_metadata(metadata)
 
 
 def has_external_rating(metadata: dict[str, Any]) -> bool:

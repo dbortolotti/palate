@@ -13,9 +13,13 @@ from .core import build_grounding, rank_candidates, retrieve_candidates
 from .llm import explain_results, extract_entities, normalize_enrichment, parse_intent
 from .media import (
     is_media_type,
+    is_music_type,
     merge_media_metadata,
+    merge_music_metadata,
     normalize_media_metadata,
+    normalize_music_metadata,
     set_media_field,
+    set_music_field,
 )
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
@@ -176,11 +180,17 @@ def palate_remember(
     rating: float | None = None,
     recommended_by: str | None = None,
     notes: str | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+    personnel: list[str] | None = None,
     synopsis: str | None = None,
     main_actors: list[str] | None = None,
     director: str | None = None,
     country: str | None = None,
+    language: list[str] | None = None,
     genre: list[str] | None = None,
+    runtime: int | None = None,
+    seasons: int | None = None,
     watched: bool | None = None,
     watched_at: str | None = None,
     imdb_id: str | None = None,
@@ -207,16 +217,22 @@ def palate_remember(
         for key, value in enrichment["attributes"].items()
         if key in allowed_attributes
     }
-    metadata, metadata_warnings = prepare_media_metadata(
+    metadata, metadata_warnings = prepare_entity_metadata(
         entity_type=type,
         canonical_name=canonical_name,
         enrichment_metadata=enrichment.get("metadata") or {},
         rating=rating,
+        artist=artist,
+        album=album,
+        personnel=personnel,
         synopsis=synopsis,
         main_actors=main_actors,
         director=director,
         country=country,
+        language=language,
         genre=genre,
+        runtime=runtime,
+        seasons=seasons,
         watched=watched,
         watched_at=watched_at,
         imdb_id=imdb_id,
@@ -336,6 +352,83 @@ def palate_log_decision(
     }
 
 
+def prepare_entity_metadata(
+    *,
+    entity_type: str,
+    canonical_name: str,
+    enrichment_metadata: dict[str, Any],
+    rating: float | None,
+    artist: str | None,
+    album: str | None,
+    personnel: list[str] | None,
+    synopsis: str | None,
+    main_actors: list[str] | None,
+    director: str | None,
+    country: str | None,
+    language: list[str] | None,
+    genre: list[str] | None,
+    runtime: int | None,
+    seasons: int | None,
+    watched: bool | None,
+    watched_at: str | None,
+    imdb_id: str | None,
+    fetch_external_ratings: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    if is_music_type(entity_type):
+        return prepare_music_metadata(
+            enrichment_metadata=enrichment_metadata,
+            artist=artist,
+            album=album,
+            personnel=personnel,
+            genre=genre,
+        )
+
+    return prepare_media_metadata(
+        entity_type=entity_type,
+        canonical_name=canonical_name,
+        enrichment_metadata=enrichment_metadata,
+        rating=rating,
+        synopsis=synopsis,
+        main_actors=main_actors,
+        director=director,
+        country=country,
+        language=language,
+        genre=genre,
+        runtime=runtime,
+        seasons=seasons,
+        watched=watched,
+        watched_at=watched_at,
+        imdb_id=imdb_id,
+        fetch_external_ratings=fetch_external_ratings,
+    )
+
+
+def prepare_music_metadata(
+    *,
+    enrichment_metadata: dict[str, Any],
+    artist: str | None,
+    album: str | None,
+    personnel: list[str] | None,
+    genre: list[str] | None,
+) -> tuple[dict[str, Any], list[str]]:
+    metadata = normalize_music_metadata(enrichment_metadata)
+    manual_paths: set[tuple[str, ...]] = set()
+
+    def apply_manual(path: tuple[str, ...], value: Any) -> None:
+        nonlocal metadata
+        if value is None:
+            return
+        metadata = set_music_field(metadata, path, value)
+        manual_paths.add(path)
+
+    apply_manual(("artist",), artist)
+    apply_manual(("album",), album)
+    apply_manual(("personnel",), personnel)
+    apply_manual(("genre",), genre)
+
+    return merge_music_metadata(metadata, {}, protected_paths=manual_paths), []
+
+
 def prepare_media_metadata(
     *,
     entity_type: str,
@@ -346,7 +439,10 @@ def prepare_media_metadata(
     main_actors: list[str] | None,
     director: str | None,
     country: str | None,
+    language: list[str] | None,
     genre: list[str] | None,
+    runtime: int | None,
+    seasons: int | None,
     watched: bool | None,
     watched_at: str | None,
     imdb_id: str | None,
@@ -369,7 +465,10 @@ def prepare_media_metadata(
     apply_manual(("main_actors",), main_actors)
     apply_manual(("director",), director)
     apply_manual(("country",), country)
+    apply_manual(("language",), language)
     apply_manual(("genre",), genre)
+    apply_manual(("runtime",), runtime)
+    apply_manual(("seasons",), seasons)
     apply_manual(("watched",), watched)
     apply_manual(("watched_at",), watched_at)
     apply_manual(("external_ids", "imdb_id"), imdb_id)

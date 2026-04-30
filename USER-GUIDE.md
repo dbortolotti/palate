@@ -81,10 +81,36 @@ Movies and series can also store structured metadata:
 - main actors
 - director
 - country
+- language
 - genre
+- runtime in minutes
+- season count for series
 - watched status and watched date
 - IMDb ID
 - external IMDb and Rotten Tomatoes critic ratings from OMDb
+
+Movie and series genres are normalized to this subset:
+
+```text
+action, adventure, animation, biography, comedy, crime, documentary, drama,
+family, fantasy, history, horror, music, musical, mystery, romance, sci_fi,
+sport, thriller, war, western
+```
+
+Music can also store structured metadata:
+
+- artist
+- album
+- personnel
+- genre
+
+Music genres are normalized to this subset:
+
+```text
+ambient, blues, classical, country, dance, electronic, experimental, folk,
+funk, hip_hop, jazz, latin, metal, pop, punk, r_and_b, reggae, rock, soul,
+soundtrack, world
+```
 
 Your own 1-5 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between
@@ -203,7 +229,10 @@ Rating: 5/5
 Watched: true
 Director: Michael Mann
 Main actors: Al Pacino, Robert De Niro, Val Kilmer
+Country: United States
+Language: English, Spanish
 Genre: crime, drama, thriller
+Runtime: 170
 IMDb ID: tt0113277
 Notes: loved the structure and atmosphere.
 ```
@@ -212,6 +241,18 @@ Notes: loved the structure and atmosphere.
 Use Palate to remember Severance as an unwatched series. Fetch IMDb and Rotten
 Tomatoes ratings if available. Notes: quiet, intellectual, unsettling workplace
 mystery.
+```
+
+```text
+Use Palate to remember this music:
+Name: Kind of Blue
+Type: music
+Description: spacious modal jazz album led by Miles Davis
+Artist: Miles Davis
+Album: Kind of Blue
+Personnel: Miles Davis, John Coltrane, Cannonball Adderley, Bill Evans
+Genre: jazz
+Rating: 5/5
 ```
 
 Best practice:
@@ -226,6 +267,7 @@ Best practice:
 - For movies and series, include watched status and your own rating when you
   have seen it. If you provide your own rating, Palate marks the item as
   watched.
+- For music, include artist, album, personnel, and genre when known.
 
 The client LLM may create a stable internal ID for the item. If you want to be
 explicit, you can provide one:
@@ -471,8 +513,8 @@ Palate responses usually include:
 - `ranked_results`: the top grounded results
 - `matched_attributes`: attributes that contributed to the ranking
 - `signal_facts`: ratings, recommendations, saved/tried signals, or text matches
-- `metadata`: movie and series synopsis, cast, director, genre, watched status,
-  IMDb ID, and external ratings when stored
+- `metadata`: movie and series metadata, music artist/album/personnel/genre,
+  and external ratings when stored
 - `negative_signals`: reasons an item was penalized or excluded
 - `unmatched_options`: pasted options that Palate could not match to memory
 

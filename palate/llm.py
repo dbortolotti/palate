@@ -6,6 +6,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from .media import MEDIA_GENRES, MUSIC_GENRES
 from .schema import (
     ATTRIBUTE_KEYS,
     ATTRIBUTE_KEYS_BY_TYPE,
@@ -139,6 +140,8 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "Never invent new attribute keys.",
                 "Each value must be in [0, 1]. Use 0 when not evidenced.",
                 "For movie or series items, extract only explicitly evidenced media metadata.",
+                "For music items, extract only explicitly evidenced music metadata.",
+                "Use canonical genre values exactly as provided by the schema.",
                 "Do not invent external ratings, external IDs, or watched status.",
             ]
         ),
@@ -147,6 +150,8 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
             "entity_type": entity_type,
             "allowed_attributes": allowed_attributes,
             "allowed_attributes_by_type": ATTRIBUTE_KEYS_BY_TYPE,
+            "allowed_media_genres": MEDIA_GENRES,
+            "allowed_music_genres": MUSIC_GENRES,
         },
         schema={
             "type": "object",
@@ -163,7 +168,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                     },
                 },
                 "notes": {"type": "string"},
-                "metadata": media_metadata_schema(),
+                "metadata": metadata_schema_for_type(entity_type),
             },
         },
     )
@@ -244,6 +249,40 @@ def json_response(
     return json.loads(response.output_text)
 
 
+def metadata_schema_for_type(entity_type: str) -> dict[str, Any]:
+    if entity_type in {"movie", "series"}:
+        return media_metadata_schema()
+    if entity_type == "music":
+        return music_metadata_schema()
+    return empty_metadata_schema()
+
+
+def empty_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [],
+        "properties": {},
+    }
+
+
+def music_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["artist", "album", "personnel", "genre"],
+        "properties": {
+            "artist": {"type": ["string", "null"]},
+            "album": {"type": ["string", "null"]},
+            "personnel": {"type": "array", "items": {"type": "string"}},
+            "genre": {
+                "type": "array",
+                "items": {"type": "string", "enum": MUSIC_GENRES},
+            },
+        },
+    }
+
+
 def media_metadata_schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -253,7 +292,10 @@ def media_metadata_schema() -> dict[str, Any]:
             "main_actors",
             "director",
             "country",
+            "language",
             "genre",
+            "runtime",
+            "seasons",
             "watched",
             "watched_at",
             "external_ids",
@@ -265,7 +307,13 @@ def media_metadata_schema() -> dict[str, Any]:
             "main_actors": {"type": "array", "items": {"type": "string"}},
             "director": {"type": ["string", "null"]},
             "country": {"type": ["string", "null"]},
-            "genre": {"type": "array", "items": {"type": "string"}},
+            "language": {"type": "array", "items": {"type": "string"}},
+            "genre": {
+                "type": "array",
+                "items": {"type": "string", "enum": MEDIA_GENRES},
+            },
+            "runtime": {"type": ["integer", "null"], "minimum": 0},
+            "seasons": {"type": ["integer", "null"], "minimum": 0},
             "watched": {"type": "boolean"},
             "watched_at": {"type": ["string", "null"]},
             "external_ids": {

@@ -127,6 +127,29 @@ class CoreBehaviorTest(unittest.TestCase):
 
         self.assertEqual([entity["id"] for entity in retrieval["candidates"]], ["movie_inception"])
 
+    def test_search_text_matches_music_metadata(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "music_kind_of_blue",
+                "type": "music",
+                "canonical_name": "Kind of Blue",
+                "metadata": {
+                    "artist": "Miles Davis",
+                    "album": "Kind of Blue",
+                    "personnel": ["John Coltrane", "Bill Evans"],
+                    "genre": ["Jazz", "Modal Jazz"],
+                },
+            }
+        )
+
+        intent = base_intent(entity_type="music", search_text="Coltrane modal")
+        retrieval = retrieve_candidates(self.store, intent)
+
+        self.assertEqual(
+            [entity["id"] for entity in retrieval["candidates"]],
+            ["music_kind_of_blue"],
+        )
+
     def test_external_ratings_are_grounding_facts(self) -> None:
         self.store.upsert_entity(
             {

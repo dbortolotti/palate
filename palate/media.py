@@ -1,18 +1,103 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from math import isfinite
 from typing import Any
 
 
 MEDIA_ENTITY_TYPES = {"movie", "series"}
+MUSIC_ENTITY_TYPE = "music"
+
+MEDIA_GENRES = [
+    "action",
+    "adventure",
+    "animation",
+    "biography",
+    "comedy",
+    "crime",
+    "documentary",
+    "drama",
+    "family",
+    "fantasy",
+    "history",
+    "horror",
+    "music",
+    "musical",
+    "mystery",
+    "romance",
+    "sci_fi",
+    "sport",
+    "thriller",
+    "war",
+    "western",
+]
+
+MUSIC_GENRES = [
+    "ambient",
+    "blues",
+    "classical",
+    "country",
+    "dance",
+    "electronic",
+    "experimental",
+    "folk",
+    "funk",
+    "hip_hop",
+    "jazz",
+    "latin",
+    "metal",
+    "pop",
+    "punk",
+    "r_and_b",
+    "reggae",
+    "rock",
+    "soul",
+    "soundtrack",
+    "world",
+]
+
+MEDIA_GENRE_ALIASES = {
+    "children": "family",
+    "kids": "family",
+    "science_fiction": "sci_fi",
+    "sci_fi": "sci_fi",
+    "sci_fy": "sci_fi",
+    "superhero": "action",
+    "sports": "sport",
+    "film_noir": "crime",
+    "noir": "crime",
+    "rom_com": "comedy",
+    "romcom": "comedy",
+    "tv_movie": "drama",
+}
+
+MUSIC_GENRE_ALIASES = {
+    "bebop": "jazz",
+    "classical_music": "classical",
+    "edm": "electronic",
+    "electronica": "electronic",
+    "hard_bop": "jazz",
+    "hip_hop": "hip_hop",
+    "hiphop": "hip_hop",
+    "modal_jazz": "jazz",
+    "rap": "hip_hop",
+    "r_b": "r_and_b",
+    "rhythm_and_blues": "r_and_b",
+    "singer_songwriter": "folk",
+    "soundtracks": "soundtrack",
+    "world_music": "world",
+}
 
 MEDIA_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("synopsis",),
     ("main_actors",),
     ("director",),
     ("country",),
+    ("language",),
     ("genre",),
+    ("runtime",),
+    ("seasons",),
     ("watched",),
     ("watched_at",),
     ("external_ids", "imdb_id"),
@@ -23,9 +108,20 @@ MEDIA_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("ratings_source", "fetched_at"),
 )
 
+MUSIC_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
+    ("artist",),
+    ("album",),
+    ("personnel",),
+    ("genre",),
+)
+
 
 def is_media_type(entity_type: str | None) -> bool:
     return entity_type in MEDIA_ENTITY_TYPES
+
+
+def is_music_type(entity_type: str | None) -> bool:
+    return entity_type == MUSIC_ENTITY_TYPE
 
 
 def empty_media_metadata() -> dict[str, Any]:
@@ -34,7 +130,10 @@ def empty_media_metadata() -> dict[str, Any]:
         "main_actors": [],
         "director": None,
         "country": None,
+        "language": [],
         "genre": [],
+        "runtime": None,
+        "seasons": None,
         "watched": False,
         "watched_at": None,
         "external_ids": {"imdb_id": None},
@@ -43,6 +142,15 @@ def empty_media_metadata() -> dict[str, Any]:
             "rotten_tomatoes": {"critic_score": None},
         },
         "ratings_source": {"provider": None, "fetched_at": None},
+    }
+
+
+def empty_music_metadata() -> dict[str, Any]:
+    return {
+        "artist": None,
+        "album": None,
+        "personnel": [],
+        "genre": [],
     }
 
 
@@ -60,6 +168,20 @@ def normalize_media_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+def normalize_music_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    result = empty_music_metadata()
+    if not isinstance(metadata, dict):
+        return result
+
+    for path in MUSIC_METADATA_PATHS:
+        raw = get_path(metadata, path)
+        if raw is None:
+            continue
+        set_path(result, path, normalize_music_value(path, raw))
+
+    return result
+
+
 def set_media_field(
     metadata: dict[str, Any],
     path: tuple[str, ...],
@@ -67,6 +189,16 @@ def set_media_field(
 ) -> dict[str, Any]:
     result = normalize_media_metadata(metadata)
     set_path(result, path, normalize_media_value(path, value))
+    return result
+
+
+def set_music_field(
+    metadata: dict[str, Any],
+    path: tuple[str, ...],
+    value: Any,
+) -> dict[str, Any]:
+    result = normalize_music_metadata(metadata)
+    set_path(result, path, normalize_music_value(path, value))
     return result
 
 
@@ -82,6 +214,30 @@ def merge_media_metadata(
     protected_paths = protected_paths or set()
 
     for path in MEDIA_METADATA_PATHS:
+        if path in protected_paths:
+            continue
+        value = get_path(source, path)
+        if is_empty_metadata_value(value):
+            continue
+        current = get_path(result, path)
+        if overwrite or is_empty_metadata_value(current):
+            set_path(result, path, value)
+
+    return result
+
+
+def merge_music_metadata(
+    base: dict[str, Any] | None,
+    incoming: dict[str, Any] | None,
+    *,
+    overwrite: bool = False,
+    protected_paths: set[tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
+    result = normalize_music_metadata(base)
+    source = normalize_music_metadata(incoming)
+    protected_paths = protected_paths or set()
+
+    for path in MUSIC_METADATA_PATHS:
         if path in protected_paths:
             continue
         value = get_path(source, path)
@@ -136,6 +292,7 @@ def external_rating_facts(metadata: dict[str, Any] | None) -> list[str]:
 
 def metadata_search_text(metadata: dict[str, Any] | None) -> str:
     normalized = normalize_media_metadata(metadata)
+    music = normalize_music_metadata(metadata)
     parts: list[str] = []
 
     for key in ["synopsis", "director", "country", "watched_at"]:
@@ -144,7 +301,12 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
             parts.append(str(value))
 
     parts.extend(normalized["main_actors"])
+    parts.extend(normalized["language"])
     parts.extend(normalized["genre"])
+    if normalized["runtime"]:
+        parts.extend(["runtime", f"{normalized['runtime']} min"])
+    if normalized["seasons"]:
+        parts.extend(["seasons", str(normalized["seasons"])])
 
     imdb_id = normalized["external_ids"].get("imdb_id")
     if imdb_id:
@@ -155,6 +317,14 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
 
     for fact in external_rating_facts(normalized):
         parts.append(fact)
+
+    for key in ["artist", "album"]:
+        value = music.get(key)
+        if value:
+            parts.append(str(value))
+
+    parts.extend(music["personnel"])
+    parts.extend(music["genre"])
 
     return " ".join(parts)
 
@@ -180,8 +350,16 @@ def set_path(mapping: dict[str, Any], path: tuple[str, ...], value: Any) -> None
 
 
 def normalize_media_value(path: tuple[str, ...], value: Any) -> Any:
-    if path in {("main_actors",), ("genre",)}:
+    if path == ("main_actors",):
         return normalize_string_list(value)
+    if path == ("language",):
+        return normalize_string_list(value)
+    if path == ("genre",):
+        return normalize_genres(value, allowed=MEDIA_GENRES, aliases=MEDIA_GENRE_ALIASES)
+    if path == ("runtime",):
+        return normalize_runtime(value)
+    if path == ("seasons",):
+        return normalize_int(value)
 
     if path == ("watched",):
         return normalize_bool(value)
@@ -198,6 +376,14 @@ def normalize_media_value(path: tuple[str, ...], value: Any) -> Any:
     return normalize_string(value)
 
 
+def normalize_music_value(path: tuple[str, ...], value: Any) -> Any:
+    if path == ("personnel",):
+        return normalize_string_list(value)
+    if path == ("genre",):
+        return normalize_genres(value, allowed=MUSIC_GENRES, aliases=MUSIC_GENRE_ALIASES)
+    return normalize_string(value)
+
+
 def normalize_string(value: Any) -> str | None:
     if value is None:
         return None
@@ -211,12 +397,33 @@ def normalize_string_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
-        values = value.split(",")
+        values = re.split(r"[,;]+", value)
     elif isinstance(value, list):
         values = value
     else:
         values = [value]
     return [text for item in values if (text := normalize_string(item))]
+
+
+def normalize_genres(
+    value: Any,
+    *,
+    allowed: list[str],
+    aliases: dict[str, str],
+) -> list[str]:
+    allowed_set = set(allowed)
+    result = []
+    for item in normalize_string_list(value):
+        key = normalize_genre_key(item)
+        canonical = aliases.get(key, key)
+        if canonical not in allowed_set or canonical in result:
+            continue
+        result.append(canonical)
+    return result
+
+
+def normalize_genre_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
 
 
 def normalize_bool(value: Any) -> bool:
@@ -243,6 +450,19 @@ def normalize_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return result
+
+
+def normalize_runtime(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    match = re.search(r"\d+", str(value).replace(",", ""))
+    if not match:
+        return None
+    return int(match.group(0))
 
 
 def is_empty_metadata_value(value: Any) -> bool:
