@@ -91,7 +91,9 @@ bootstrap_shared_state() {
       cp "${SOURCE_DIR}/secrets/${secret}" "${SHARED_DIR}/secrets/${secret}"
     fi
   done
-  find "${SHARED_DIR}/secrets" -type f -exec chmod 600 {} +
+  for secret_path in "${SHARED_DIR}/secrets"/*; do
+    [[ -f "${secret_path}" ]] && chmod 600 "${secret_path}"
+  done
 }
 
 build_release() {
