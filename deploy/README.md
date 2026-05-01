@@ -51,6 +51,10 @@ unit tests, backs up the current SQLite database, switches the `current`
 symlink, restarts launchd, checks `/healthz`, and rolls back the symlink if the
 health check fails.
 
+The LaunchAgent starts the trusted system Python and sets `PYTHONPATH` to the
+current release plus its virtualenv packages. This avoids macOS launchd refusing
+to spawn a virtualenv Python shim directly from the external volume.
+
 ## GitHub Actions Deployment
 
 CI runs on GitHub-hosted runners. Deployment runs on this Mac through a

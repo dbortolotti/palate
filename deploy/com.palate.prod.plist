@@ -8,7 +8,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Volumes/xpg_usb4/prod/palate/current/.venv/bin/python</string>
+    <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
     <string>-m</string>
     <string>palate.server</string>
   </array>
@@ -20,6 +20,8 @@
   <dict>
     <key>PATH</key>
     <string>/Volumes/xpg_usb4/prod/palate/current/.venv/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PYTHONPATH</key>
+    <string>/Volumes/xpg_usb4/prod/palate/current:/Volumes/xpg_usb4/prod/palate/current/.venv/lib/python3.14/site-packages</string>
     <key>PALATE_ENV_PATH</key>
     <string>/Volumes/xpg_usb4/prod/palate/shared/.env</string>
     <key>PALATE_TRANSPORT</key>
