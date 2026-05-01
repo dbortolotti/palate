@@ -8,13 +8,13 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
-    <string>-m</string>
-    <string>palate.server</string>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd /Volumes/xpg_usb4/prod/palate/current &amp;&amp; exec /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m palate.server</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Volumes/xpg_usb4/prod/palate/current</string>
+  <string>/Users/oric</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -75,9 +75,9 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Volumes/xpg_usb4/prod/palate/shared/logs/palate.out.log</string>
+  <string>/Users/oric/Library/Logs/palate-prod.out.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Volumes/xpg_usb4/prod/palate/shared/logs/palate.err.log</string>
+  <string>/Users/oric/Library/Logs/palate-prod.err.log</string>
 </dict>
 </plist>

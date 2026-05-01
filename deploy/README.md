@@ -35,9 +35,16 @@ Mutable state is shared across releases:
 ```text
 /Volumes/xpg_usb4/prod/palate/shared/data/palate.sqlite
 /Volumes/xpg_usb4/prod/palate/shared/backups/
-/Volumes/xpg_usb4/prod/palate/shared/logs/
 /Volumes/xpg_usb4/prod/palate/shared/secrets/
 /Volumes/xpg_usb4/prod/palate/shared/.env
+```
+
+Launchd stdout/stderr logs stay local because macOS can refuse to spawn a
+LaunchAgent when those paths are on the external volume:
+
+```text
+/Users/oric/Library/Logs/palate-prod.out.log
+/Users/oric/Library/Logs/palate-prod.err.log
 ```
 
 Deploy locally from a checked-out copy with:
@@ -51,9 +58,11 @@ unit tests, backs up the current SQLite database, switches the `current`
 symlink, restarts launchd, checks `/healthz`, and rolls back the symlink if the
 health check fails.
 
-The LaunchAgent starts the trusted system Python and sets `PYTHONPATH` to the
-current release plus its virtualenv packages. This avoids macOS launchd refusing
-to spawn a virtualenv Python shim directly from the external volume.
+The LaunchAgent starts a local shell from `/Users/oric`, changes into the
+external-volume release, then execs the trusted system Python with `PYTHONPATH`
+pointing at the current release plus its virtualenv packages. This avoids macOS
+launchd refusing to spawn with external-volume executable or working-directory
+metadata.
 
 ## GitHub Actions Deployment
 
