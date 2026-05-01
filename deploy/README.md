@@ -59,7 +59,7 @@ logs/palate.out.log
 logs/palate.err.log
 ```
 
-Set `OPENAI_API_KEY` in `/Users/oric/git/palate/.env` before using LLM-backed tools.
+Set `OPENAI_API_KEY` in `../.env` before using LLM-backed tools.
 
 ## MCP Auth
 
@@ -75,19 +75,19 @@ The first ChatGPT connection opens a Palate login page. The password is stored
 at:
 
 ```text
-/Users/oric/git/palate/secrets/palate-auth-password
+../secrets/palate-auth-password
 ```
 
 OAuth client registrations and issued tokens are stored at:
 
 ```text
-/Users/oric/git/palate/secrets/palate-oauth.json
+../secrets/palate-oauth.json
 ```
 
 Backups run once daily while the server is running. By default they write:
 
 ```text
-/Users/oric/git/palate/backups/
+../backups/
 ```
 
 Each run creates:
@@ -113,7 +113,7 @@ One-time Google setup:
 3. Save the downloaded client JSON at:
 
 ```text
-/Users/oric/git/palate/secrets/google-oauth-client.json
+../secrets/google-oauth-client.json
 ```
 
 4. Run:
@@ -125,7 +125,7 @@ python3 -m palate.google_drive
 That opens a browser and writes:
 
 ```text
-/Users/oric/git/palate/secrets/google-token.json
+../secrets/google-token.json
 ```
 
 To enable upload after authorization, change the LaunchAgent setting:

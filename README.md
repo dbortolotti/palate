@@ -77,7 +77,7 @@ Option-set tools stay constrained to the provided options. If a pasted option is
 
 ## Deployment
 
-This repo includes a macOS LaunchAgent template and Tailscale Funnel notes in [deploy/README.md](/Users/oric/git/palate/deploy/README.md).
+This repo includes a macOS LaunchAgent template and Tailscale Funnel notes in [deploy/README.md](deploy/README.md).
 
 ## MCP Auth
 
@@ -91,13 +91,13 @@ https://modal.tail63a6b7.ts.net/palate/mcp
 The first connection opens a Palate login page. The password is read from:
 
 ```text
-/Users/oric/git/palate/secrets/palate-auth-password
+secrets/palate-auth-password
 ```
 
 OAuth client registrations and issued tokens are stored in:
 
 ```text
-/Users/oric/git/palate/secrets/palate-oauth.json
+secrets/palate-oauth.json
 ```
 
 Both files are under `secrets/`, which is ignored by git.
@@ -131,7 +131,7 @@ One-time setup:
 4. Save the downloaded client JSON as:
 
 ```text
-/Users/oric/git/palate/secrets/google-oauth-client.json
+secrets/google-oauth-client.json
 ```
 
 5. Authorize once from a normal user session:
@@ -143,7 +143,7 @@ python3 -m palate.google_drive
 This opens a browser, stores a refresh token in:
 
 ```text
-/Users/oric/git/palate/secrets/google-token.json
+secrets/google-token.json
 ```
 
 and creates or reuses the Drive folder path `backup/palate`.
@@ -167,7 +167,7 @@ only manages files/folders created by this app or explicitly selected for it.
     "palate": {
       "command": "python3",
       "args": ["-m", "palate.server"],
-      "cwd": "/Users/oric/git/palate",
+      "cwd": ".",
       "env": {
         "OPENAI_API_KEY": "your-openai-api-key",
         "OMDB_API_KEY": "your-omdb-api-key",

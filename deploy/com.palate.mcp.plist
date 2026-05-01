@@ -29,13 +29,13 @@
     <key>PALATE_MCP_PATH</key>
     <string>/mcp</string>
     <key>PALATE_DB_PATH</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/data/palate.sqlite</string>
+    <string>data/palate.sqlite</string>
     <key>PALATE_MODEL</key>
     <string>gpt-5.4-nano</string>
     <key>PALATE_BACKUP_ENABLED</key>
     <string>1</string>
     <key>PALATE_BACKUP_DIR</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/backups</string>
+    <string>backups</string>
     <key>PALATE_BACKUP_RETENTION_DAYS</key>
     <string>31</string>
     <key>PALATE_BACKUP_INTERVAL_SECONDS</key>
@@ -45,9 +45,9 @@
     <key>PALATE_GOOGLE_DRIVE_FOLDER_NAME</key>
     <string>backup/palate</string>
     <key>PALATE_GOOGLE_CREDENTIALS_PATH</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/secrets/google-oauth-client.json</string>
+    <string>secrets/google-oauth-client.json</string>
     <key>PALATE_GOOGLE_TOKEN_PATH</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/secrets/google-token.json</string>
+    <string>secrets/google-token.json</string>
     <key>PALATE_AUTH_ENABLED</key>
     <string>1</string>
     <key>PALATE_PUBLIC_BASE_URL</key>
@@ -55,9 +55,9 @@
     <key>PALATE_AUTH_SCOPES</key>
     <string>palate.access</string>
     <key>PALATE_AUTH_PASSWORD_FILE</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/secrets/palate-auth-password</string>
+    <string>secrets/palate-auth-password</string>
     <key>PALATE_AUTH_STATE_PATH</key>
-    <string>/Volumes/xpg_usb4/oric/git/palate/secrets/palate-oauth.json</string>
+    <string>secrets/palate-oauth.json</string>
     <key>PALATE_ALLOWED_HOSTS</key>
     <string>127.0.0.1,127.0.0.1:8787,localhost,localhost:8787,modal.tail63a6b7.ts.net</string>
     <key>PALATE_ALLOWED_ORIGINS</key>
