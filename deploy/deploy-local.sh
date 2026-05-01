@@ -91,7 +91,12 @@ bootstrap_shared_state() {
       cp "${SOURCE_DIR}/secrets/${secret}" "${SHARED_DIR}/secrets/${secret}"
     fi
   done
-  for secret_path in "${SHARED_DIR}/secrets"/*; do
+  for secret in \
+    google-oauth-client.json \
+    google-token.json \
+    palate-auth-password \
+    palate-oauth.json; do
+    secret_path="${SHARED_DIR}/secrets/${secret}"
     [[ -f "${secret_path}" ]] && chmod 600 "${secret_path}"
   done
 }
