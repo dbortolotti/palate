@@ -14,7 +14,7 @@
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Volumes/xpg_usb4/oric/git/palate</string>
+  <string>/Volumes/xpg_usb4/sandbox/git/palate</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -71,9 +71,9 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Volumes/xpg_usb4/oric/git/palate/logs/palate.out.log</string>
+  <string>/Volumes/xpg_usb4/sandbox/git/palate/logs/palate.out.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Volumes/xpg_usb4/oric/git/palate/logs/palate.err.log</string>
+  <string>/Volumes/xpg_usb4/sandbox/git/palate/logs/palate.err.log</string>
 </dict>
 </plist>
