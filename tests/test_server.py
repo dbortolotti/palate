@@ -41,6 +41,11 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["sqlite"], "a.sqlite")
         self.assertEqual(result["json"], "a.json")
 
+    def test_healthz_reports_database_ready(self) -> None:
+        result = asyncio.run(server.healthz(None))
+
+        self.assertEqual(result.status_code, 200)
+
     def test_how_to_tool_returns_user_guide_markdown(self) -> None:
         guide_path = self.temp_dir / "USER-GUIDE.md"
         guide_path.write_text("# Palate User Guide\n\nUse Palate for this.\n", encoding="utf-8")

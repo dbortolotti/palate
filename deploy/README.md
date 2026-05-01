@@ -1,7 +1,8 @@
 # Palate Deployment
 
-This repo is currently configured for a macOS LaunchAgent plus Tailscale
-Funnel.
+This repo is configured for a macOS LaunchAgent plus Tailscale Funnel. The
+recommended production layout keeps the live service under `/Users/oric/prod`
+instead of running from the development checkout.
 
 The service runs locally on:
 
@@ -15,7 +16,63 @@ Tailscale Funnel exposes the authenticated MCP endpoint publicly on:
 https://modal.tail63a6b7.ts.net/palate/mcp
 ```
 
-The launchd plist is:
+## Production Layout
+
+Production releases live at:
+
+```text
+/Users/oric/prod/palate/releases/<git-sha>
+```
+
+The live service runs through the symlink:
+
+```text
+/Users/oric/prod/palate/current
+```
+
+Mutable state is shared across releases:
+
+```text
+/Users/oric/prod/palate/shared/data/palate.sqlite
+/Users/oric/prod/palate/shared/backups/
+/Users/oric/prod/palate/shared/logs/
+/Users/oric/prod/palate/shared/secrets/
+/Users/oric/prod/palate/shared/.env
+```
+
+Deploy locally from a checked-out copy with:
+
+```sh
+./deploy/deploy-local.sh
+```
+
+The script builds an isolated release, installs dependencies, runs compile and
+unit tests, backs up the current SQLite database, switches the `current`
+symlink, restarts launchd, checks `/healthz`, and rolls back the symlink if the
+health check fails.
+
+## GitHub Actions Deployment
+
+CI runs on GitHub-hosted runners. Deployment runs on this Mac through a
+self-hosted runner labeled `palate-prod`.
+
+Install or repair the local runner with:
+
+```sh
+./deploy/install-github-runner.sh
+```
+
+After the runner is online, every push to `main` runs:
+
+```text
+.github/workflows/deploy-local.yml
+```
+
+Only trusted `main` code should run on the self-hosted runner.
+
+## Legacy Development LaunchAgent
+
+The development launchd plist is:
 
 ```text
 deploy/com.palate.mcp.plist

@@ -1,0 +1,26 @@
+name: Deploy Local Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: palate-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - palate-prod
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to local LaunchAgent
+        run: ./deploy/deploy-local.sh

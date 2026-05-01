@@ -7,6 +7,8 @@ from typing import Any, Literal
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from .backup import backup_once, start_backup_scheduler
 from .core import build_grounding, rank_candidates, retrieve_candidates
@@ -27,7 +29,7 @@ from .schema import ENTITY_TYPES, attribute_keys_for_type
 from .storage import attribute_interval_95, attribute_value, open_store
 
 
-load_dotenv()
+load_dotenv(os.getenv("PALATE_ENV_PATH"))
 
 store = open_store()
 auth_settings, auth_provider = build_auth_components()
@@ -66,6 +68,20 @@ EntityType = Literal[
     "series",
 ]
 USER_GUIDE_PATH = Path(__file__).resolve().parents[1] / "USER-GUIDE.md"
+
+
+@mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+async def healthz(_request: Request) -> JSONResponse:
+    """Return a lightweight readiness signal for local deployment checks."""
+    try:
+        store.conn.execute("SELECT 1").fetchone()
+    except Exception as exc:  # noqa: BLE001 - deployment health should report any failure.
+        return JSONResponse(
+            {"status": "error", "database": "unavailable", "error": str(exc)},
+            status_code=503,
+        )
+
+    return JSONResponse({"status": "ok", "database": "ok"})
 
 
 @mcp.tool()
