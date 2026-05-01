@@ -1,7 +1,7 @@
 # Palate Deployment
 
 This repo is configured for a macOS LaunchAgent plus Tailscale Funnel. The
-recommended production layout keeps the live service under `/Users/oric/prod`
+recommended production layout keeps the live service under `/Volumes/xpg_usb4/prod`
 instead of running from the development checkout.
 
 The service runs locally on:
@@ -21,23 +21,23 @@ https://modal.tail63a6b7.ts.net/palate/mcp
 Production releases live at:
 
 ```text
-/Users/oric/prod/palate/releases/<git-sha>
+/Volumes/xpg_usb4/prod/palate/releases/<git-sha>
 ```
 
 The live service runs through the symlink:
 
 ```text
-/Users/oric/prod/palate/current
+/Volumes/xpg_usb4/prod/palate/current
 ```
 
 Mutable state is shared across releases:
 
 ```text
-/Users/oric/prod/palate/shared/data/palate.sqlite
-/Users/oric/prod/palate/shared/backups/
-/Users/oric/prod/palate/shared/logs/
-/Users/oric/prod/palate/shared/secrets/
-/Users/oric/prod/palate/shared/.env
+/Volumes/xpg_usb4/prod/palate/shared/data/palate.sqlite
+/Volumes/xpg_usb4/prod/palate/shared/backups/
+/Volumes/xpg_usb4/prod/palate/shared/logs/
+/Volumes/xpg_usb4/prod/palate/shared/secrets/
+/Volumes/xpg_usb4/prod/palate/shared/.env
 ```
 
 Deploy locally from a checked-out copy with:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_ROOT="${PALATE_PROD_ROOT:-/Users/oric/prod/palate}"
+APP_ROOT="${PALATE_PROD_ROOT:-/Volumes/xpg_usb4/prod/palate}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PALATE_PYTHON_BIN:-/Library/Frameworks/Python.framework/Versions/3.14/bin/python3}"
 LABEL="${PALATE_LAUNCHD_LABEL:-com.palate.mcp}"
