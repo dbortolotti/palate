@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 import json
 import re
 import sqlite3
@@ -482,34 +483,33 @@ class PalateStore:
         all_entities = self.list_entities()
         matched = []
         unmatched = []
+        match_details = []
+        needs_confirmation = []
 
         for name in names:
-            normalized = normalize(name)
-            entity = next(
-                (
-                    candidate
-                    for candidate in all_entities
-                    if normalize(candidate["canonical_name"]) == normalized
-                ),
-                None,
-            )
-            if entity is None:
-                entity = next(
-                    (
-                        candidate
-                        for candidate in all_entities
-                        if normalized in normalize(candidate["canonical_name"])
-                        or normalize(candidate["canonical_name"]) in normalized
-                    ),
-                    None,
-                )
+            match = best_entity_name_match(name, all_entities)
 
-            if entity:
-                matched.append(entity)
+            if match and match["confidence"] >= 0.5:
+                matched.append(match["entity"])
+                detail = {
+                    "input": name,
+                    "matched_id": match["entity"]["id"],
+                    "matched_name": match["entity"]["canonical_name"],
+                    "confidence": round(match["confidence"], 3),
+                    "needs_confirmation": match["confidence"] < 0.85,
+                }
+                match_details.append(detail)
+                if detail["needs_confirmation"]:
+                    needs_confirmation.append(detail)
             else:
                 unmatched.append(name)
 
-        return {"matched": unique_by_id(matched), "unmatched": unmatched}
+        return {
+            "matched": unique_by_id(matched),
+            "unmatched": unmatched,
+            "matches": unique_match_details(match_details),
+            "needs_confirmation": unique_match_details(needs_confirmation),
+        }
 
     def log_decision(
         self,
@@ -600,6 +600,124 @@ class PalateStore:
 
 def normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def best_entity_name_match(
+    name: str,
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    best: dict[str, Any] | None = None
+    for candidate in candidates:
+        confidence = name_match_confidence(name, candidate["canonical_name"])
+        if best is None or confidence > best["confidence"]:
+            best = {"entity": candidate, "confidence": confidence}
+    return best
+
+
+def name_match_confidence(left: str, right: str) -> float:
+    left_norm = normalize_name_for_match(left)
+    right_norm = normalize_name_for_match(right)
+    if not left_norm or not right_norm:
+        return 0.0
+    if left_norm == right_norm:
+        return 1.0
+    if left_norm in right_norm or right_norm in left_norm:
+        return 1.0
+
+    left_tokens = left_norm.split()
+    right_tokens = right_norm.split()
+    overlap_tokens = set(left_tokens) & set(right_tokens)
+    token_score = token_overlap_score(left_tokens, right_tokens)
+    sequence_score = SequenceMatcher(None, left_norm, right_norm).ratio()
+    if overlap_tokens and overlap_tokens <= GENERIC_WINE_NAME_TOKENS:
+        return min(max(token_score, sequence_score), 0.49)
+    return max(token_score, sequence_score)
+
+
+def normalize_name_for_match(value: str) -> str:
+    tokens = [
+        normalize_wine_token(token)
+        for token in normalize(value).split()
+        if token not in NAME_MATCH_STOP_WORDS and not is_vintage_token(token)
+    ]
+    return " ".join(token for token in tokens if token)
+
+
+def normalize_wine_token(token: str) -> str:
+    aliases = {
+        "cab": "cabernet",
+        "cabs": "cabernet",
+        "sauv": "sauvignon",
+        "sauvignon": "sauvignon",
+        "syra": "syrah",
+        "est": "estate",
+        "ch": "chateau",
+    }
+    return aliases.get(token, token)
+
+
+def is_vintage_token(token: str) -> bool:
+    return bool(re.fullmatch(r"(19|20)\d{2}", token))
+
+
+def token_overlap_score(left_tokens: list[str], right_tokens: list[str]) -> float:
+    left = set(left_tokens)
+    right = set(right_tokens)
+    if not left or not right:
+        return 0.0
+    overlap = len(left & right)
+    precision = overlap / len(left)
+    recall = overlap / len(right)
+    if precision == 0 or recall == 0:
+        return 0.0
+    return 2 * precision * recall / (precision + recall)
+
+
+def unique_match_details(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen = set()
+    unique = []
+    for match in matches:
+        key = (match["input"], match["matched_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(match)
+    return unique
+
+
+NAME_MATCH_STOP_WORDS = {
+    "the",
+    "a",
+    "an",
+    "and",
+    "of",
+    "de",
+    "di",
+    "da",
+    "la",
+    "le",
+    "il",
+    "lo",
+    "s",
+}
+
+
+GENERIC_WINE_NAME_TOKENS = {
+    "barolo",
+    "cabernet",
+    "chardonnay",
+    "grenache",
+    "malbec",
+    "merlot",
+    "nebbiolo",
+    "pinot",
+    "riesling",
+    "sangiovese",
+    "sauvignon",
+    "syrah",
+    "tempranillo",
+    "zinfandel",
+}
 
 
 def query_is_similar(current: str, historical: str) -> bool:

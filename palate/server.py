@@ -894,6 +894,8 @@ def describe_retrieval(retrieval: dict[str, Any]) -> dict[str, Any]:
     return {
         "constrained_to_options": retrieval["constrained_to_options"],
         "unmatched_options": retrieval["unmatched_options"],
+        "option_matches": retrieval.get("option_matches", []),
+        "needs_confirmation": retrieval.get("needs_confirmation", []),
         "candidate_count": len(retrieval["candidates"]),
         "matched_candidates": [
             {

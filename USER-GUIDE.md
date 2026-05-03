@@ -599,6 +599,9 @@ client answer. In particular, call out:
 - items already stored but not tried as "you wanted to try this"
 - items with a good rating as "you tried this and liked it"
 - items with a low rating or dislike signal as a caution
+- low-confidence fuzzy option matches in `needs_confirmation`; ask the user to
+  confirm matches below 85% confidence before relying on them. Palate discards
+  matches below 50% and reports them as unmatched.
 
 ## Troubleshooting Client Behavior
 

@@ -51,6 +51,20 @@ class CoreBehaviorTest(unittest.TestCase):
         self.assertTrue(retrieval["constrained_to_options"])
         self.assertEqual([entity["id"] for entity in retrieval["candidates"]], ["wine_mike"])
         self.assertEqual(retrieval["unmatched_options"], ["Unknown Cellar Cabernet"])
+        self.assertEqual(retrieval["option_matches"][0]["matched_id"], "wine_mike")
+        self.assertEqual(retrieval["needs_confirmation"], [])
+
+    def test_option_set_retrieval_surfaces_uncertain_fuzzy_matches(self) -> None:
+        intent = base_intent(entity_type="wine")
+        retrieval = retrieve_candidates(
+            self.store,
+            intent,
+            [{"canonical_name": "Mike Syrah", "type": "wine"}],
+        )
+
+        self.assertEqual([entity["id"] for entity in retrieval["candidates"]], ["wine_mike"])
+        self.assertEqual(retrieval["needs_confirmation"][0]["matched_id"], "wine_mike")
+        self.assertLess(retrieval["needs_confirmation"][0]["confidence"], 0.85)
 
     def test_option_set_retrieval_respects_inferred_entity_type(self) -> None:
         intent = base_intent(entity_type="wine")

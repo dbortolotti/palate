@@ -65,6 +65,55 @@ class StorageBehaviorTest(unittest.TestCase):
         matched = self.store.match_entities_by_names(["duck waffle"])
         self.assertEqual([entity["id"] for entity in matched["matched"]], ["duck_waffle"])
         self.assertEqual(matched["unmatched"], [])
+        self.assertEqual(matched["matches"][0]["confidence"], 1.0)
+        self.assertFalse(matched["matches"][0]["needs_confirmation"])
+
+    def test_name_matching_uses_fuzzy_confidence_for_ocr_and_aliases(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "ridge_cab",
+                "type": "wine",
+                "canonical_name": "Ridge Estate Cabernet Sauvignon",
+            }
+        )
+
+        matched = self.store.match_entities_by_names(["Ridge Est Cab Sauv 2019"])
+
+        self.assertEqual([entity["id"] for entity in matched["matched"]], ["ridge_cab"])
+        self.assertEqual(matched["unmatched"], [])
+        self.assertGreaterEqual(matched["matches"][0]["confidence"], 0.85)
+        self.assertEqual(matched["needs_confirmation"], [])
+
+    def test_name_matching_flags_uncertain_matches_between_half_and_85_percent(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "ridge_cab",
+                "type": "wine",
+                "canonical_name": "Ridge Estate Cabernet Sauvignon",
+            }
+        )
+
+        matched = self.store.match_entities_by_names(["Ridge Estate Merlot"])
+
+        self.assertEqual([entity["id"] for entity in matched["matched"]], ["ridge_cab"])
+        self.assertEqual(matched["unmatched"], [])
+        self.assertLess(matched["matches"][0]["confidence"], 0.85)
+        self.assertEqual(matched["needs_confirmation"][0]["matched_id"], "ridge_cab")
+
+    def test_name_matching_discards_matches_below_half_confidence(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "ridge_cab",
+                "type": "wine",
+                "canonical_name": "Ridge Estate Cabernet Sauvignon",
+            }
+        )
+
+        matched = self.store.match_entities_by_names(["Duckhorn Merlot"])
+
+        self.assertEqual(matched["matched"], [])
+        self.assertEqual(matched["unmatched"], ["Duckhorn Merlot"])
+        self.assertEqual(matched["matches"], [])
 
     def test_name_matching_deduplicates_repeated_options(self) -> None:
         self.store.upsert_entity(

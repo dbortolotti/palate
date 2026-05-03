@@ -107,6 +107,8 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertEqual(result["retrieval"]["unmatched_options"], ["Unknown Cellar Cabernet"])
+        self.assertEqual(result["retrieval"]["option_matches"][0]["matched_id"], "wine_mike")
+        self.assertEqual(result["retrieval"]["needs_confirmation"], [])
 
     def test_evaluate_options_accepts_client_entities_without_extraction_call(self) -> None:
         with patch.object(server, "parse_intent", side_effect=AssertionError("should not parse")), \
@@ -124,10 +126,25 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertEqual(result["retrieval"]["unmatched_options"], ["Unknown Cellar Cabernet"])
+        self.assertEqual(result["retrieval"]["option_matches"][0]["matched_id"], "wine_mike")
         self.assertEqual(
             result["server_llm_used"],
             {"intent": False, "entity_extraction": False, "explanation": False},
         )
+
+    def test_evaluate_options_surfaces_uncertain_match_for_confirmation(self) -> None:
+        with patch.object(server, "parse_intent", side_effect=AssertionError("should not parse")), \
+             patch.object(server, "extract_entities", side_effect=AssertionError("should not extract")):
+            result = server.palate_evaluate_options(
+                "which wine",
+                "Mike Syrah",
+                intent=base_intent(entity_type="wine"),
+                extracted_entities=[{"canonical_name": "Mike Syrah", "type": "wine"}],
+            )
+
+        self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
+        self.assertEqual(result["retrieval"]["needs_confirmation"][0]["matched_id"], "wine_mike")
+        self.assertLess(result["retrieval"]["needs_confirmation"][0]["confidence"], 0.85)
 
     def test_recall_uses_parsed_search_text(self) -> None:
         with patch.object(server, "parse_intent", return_value=base_intent(entity_type="restaurant", search_text="place with a view")):

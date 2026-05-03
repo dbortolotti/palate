@@ -85,6 +85,9 @@ for cost auditing.
 Ranked results include `memory_status` so menu/photo evaluations can distinguish
 "you wanted to try this" from "you tried this and liked it." The wanted-to-try
 state is inferred from a stored item that has no rating or tried/watched signal.
+Option matching returns transient `option_matches` confidence metadata:
+confident matches are 85% or higher, 50-85% matches are returned in
+`needs_confirmation`, and matches below 50% are discarded as unmatched.
 
 ## Ranking Eval
 

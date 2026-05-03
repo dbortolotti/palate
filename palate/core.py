@@ -62,6 +62,8 @@ def retrieve_candidates(
         return {
             "candidates": filter_by_type(matched["matched"], intent.get("entity_type")),
             "unmatched_options": matched["unmatched"],
+            "option_matches": matched.get("matches", []),
+            "needs_confirmation": matched.get("needs_confirmation", []),
             "constrained_to_options": True,
         }
 
@@ -70,6 +72,8 @@ def retrieve_candidates(
     return {
         "candidates": searched,
         "unmatched_options": [],
+        "option_matches": [],
+        "needs_confirmation": [],
         "constrained_to_options": False,
     }
 
