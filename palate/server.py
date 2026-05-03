@@ -19,12 +19,16 @@ from .llm import explain_results, extract_entities, normalize_enrichment, parse_
 from .media import (
     is_media_type,
     is_music_type,
+    is_restaurant_type,
     merge_media_metadata,
     merge_music_metadata,
+    merge_restaurant_metadata,
     normalize_media_metadata,
     normalize_music_metadata,
+    normalize_restaurant_metadata,
     set_media_field,
     set_music_field,
+    set_restaurant_field,
 )
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
@@ -967,6 +971,8 @@ def remember_metadata_arguments(entity_type: str, metadata: dict[str, Any]) -> d
             "personnel": metadata.get("personnel"),
             "genre": metadata.get("genre"),
         }
+    if is_restaurant_type(entity_type):
+        return {"genre": metadata.get("genre")}
     if is_media_type(entity_type):
         return {
             "synopsis": metadata.get("synopsis"),
@@ -1064,6 +1070,11 @@ def prepare_entity_metadata(
             personnel=personnel,
             genre=genre,
         )
+    if is_restaurant_type(entity_type):
+        return prepare_restaurant_metadata(
+            enrichment_metadata=enrichment_metadata,
+            genre=genre,
+        )
 
     return prepare_media_metadata(
         entity_type=entity_type,
@@ -1145,6 +1156,21 @@ def prepare_music_metadata(
     apply_manual(("genre",), genre)
 
     return merge_music_metadata(metadata, {}, protected_paths=manual_paths), []
+
+
+def prepare_restaurant_metadata(
+    *,
+    enrichment_metadata: dict[str, Any],
+    genre: list[str] | None,
+) -> tuple[dict[str, Any], list[str]]:
+    metadata = normalize_restaurant_metadata(enrichment_metadata)
+    manual_paths: set[tuple[str, ...]] = set()
+
+    if genre is not None:
+        metadata = set_restaurant_field(metadata, ("genre",), genre)
+        manual_paths.add(("genre",))
+
+    return merge_restaurant_metadata(metadata, {}, protected_paths=manual_paths), []
 
 
 def prepare_media_metadata(

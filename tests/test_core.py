@@ -438,6 +438,19 @@ class CoreBehaviorTest(unittest.TestCase):
 
         self.assertEqual(score_text_match(entity, "café italianate"), 1.0)
 
+    def test_search_text_matches_restaurant_cuisine_genre_metadata(self) -> None:
+        entity = {
+            "id": "restaurant_mexican",
+            "type": "restaurant",
+            "canonical_name": "Casa Test",
+            "metadata": {"genre": ["Mexican", "Modern European"]},
+            "attributes": {},
+            "signals": [],
+        }
+
+        self.assertEqual(score_text_match(entity, "mexican dinner"), 0.5)
+        self.assertEqual(score_text_match(entity, "modern european"), 1.0)
+
     def test_dislike_signal_penalizes_but_does_not_hide_item(self) -> None:
         self.store.add_signal("wine_alex", "dislike", "too heavy")
         intent = base_intent(entity_type="wine")

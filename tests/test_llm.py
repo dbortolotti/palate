@@ -75,6 +75,24 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             MUSIC_GENRES,
         )
 
+    def test_normalize_enrichment_uses_restaurant_cuisine_metadata_schema(self) -> None:
+        restaurant_attributes = attribute_keys_for_type("restaurant")
+        response = {
+            "attributes": {key: 0 for key in restaurant_attributes},
+            "notes": "",
+            "metadata": {"genre": ["italian"]},
+        }
+
+        with patch("palate.llm.json_response", return_value=response) as json_response:
+            result = normalize_enrichment("Italian trattoria", "restaurant")
+
+        metadata_schema = json_response.call_args.kwargs["schema"]["properties"]["metadata"]
+
+        self.assertEqual(result, response)
+        self.assertEqual(metadata_schema["required"], ["genre"])
+        self.assertEqual(metadata_schema["properties"]["genre"]["items"]["type"], "string")
+        self.assertNotIn("enum", metadata_schema["properties"]["genre"]["items"])
+
     def test_wine_attribute_schema_uses_core_and_flavour_wheel_terms(self) -> None:
         wine_attributes = attribute_keys_for_type("wine")
 

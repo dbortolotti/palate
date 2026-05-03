@@ -145,6 +145,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "Use a narrow interval when evidence is explicit and a wide interval when weak or absent.",
                 "For movie or series items, extract only explicitly evidenced media metadata.",
                 "For music items, extract only explicitly evidenced music metadata.",
+                "For restaurant items, extract explicitly evidenced cuisine as metadata genre.",
                 "Use canonical genre values exactly as provided by the schema.",
                 "Do not invent external ratings, external IDs, or watched status.",
             ]
@@ -278,6 +279,8 @@ def metadata_schema_for_type(entity_type: str) -> dict[str, Any]:
         return media_metadata_schema()
     if entity_type == "music":
         return music_metadata_schema()
+    if entity_type == "restaurant":
+        return restaurant_metadata_schema()
     return empty_metadata_schema()
 
 
@@ -302,6 +305,20 @@ def music_metadata_schema() -> dict[str, Any]:
             "genre": {
                 "type": "array",
                 "items": {"type": "string", "enum": MUSIC_GENRES},
+            },
+        },
+    }
+
+
+def restaurant_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["genre"],
+        "properties": {
+            "genre": {
+                "type": "array",
+                "items": {"type": "string"},
             },
         },
     }

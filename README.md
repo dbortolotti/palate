@@ -27,6 +27,8 @@ and Rotten Tomatoes critic ratings. External ratings are stored as reference
 metadata only; the personal 1-10 `rating` signal remains the taste score.
 OMDb also fills country list, language, runtime, and series season count when available.
 Music memories can store artist, album, personnel, and genre metadata.
+Restaurant memories can store cuisine as metadata `genre`, for values such as
+`italian`, `mexican`, `japanese`, or `modern_european`.
 
 ## Setup
 

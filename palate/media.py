@@ -8,6 +8,7 @@ from typing import Any
 
 MEDIA_ENTITY_TYPES = {"movie", "series"}
 MUSIC_ENTITY_TYPE = "music"
+RESTAURANT_ENTITY_TYPE = "restaurant"
 
 MEDIA_GENRES = [
     "action",
@@ -89,6 +90,28 @@ MUSIC_GENRE_ALIASES = {
     "world_music": "world",
 }
 
+RESTAURANT_GENRE_ALIASES = {
+    "bbq": "barbecue",
+    "bistro": "french",
+    "british": "british",
+    "cantonese": "chinese",
+    "dim_sum": "chinese",
+    "gastropub": "british",
+    "indian": "indian",
+    "italia": "italian",
+    "italian": "italian",
+    "japanese": "japanese",
+    "korean": "korean",
+    "mexican": "mexican",
+    "modern_european": "modern_european",
+    "new_american": "american",
+    "pizzeria": "italian",
+    "sushi": "japanese",
+    "thai": "thai",
+    "trattoria": "italian",
+    "vietnamese": "vietnamese",
+}
+
 MEDIA_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("synopsis",),
     ("main_actors",),
@@ -115,6 +138,8 @@ MUSIC_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("genre",),
 )
 
+RESTAURANT_METADATA_PATHS: tuple[tuple[str, ...], ...] = (("genre",),)
+
 
 def is_media_type(entity_type: str | None) -> bool:
     return entity_type in MEDIA_ENTITY_TYPES
@@ -122,6 +147,10 @@ def is_media_type(entity_type: str | None) -> bool:
 
 def is_music_type(entity_type: str | None) -> bool:
     return entity_type == MUSIC_ENTITY_TYPE
+
+
+def is_restaurant_type(entity_type: str | None) -> bool:
+    return entity_type == RESTAURANT_ENTITY_TYPE
 
 
 def empty_media_metadata() -> dict[str, Any]:
@@ -154,6 +183,10 @@ def empty_music_metadata() -> dict[str, Any]:
     }
 
 
+def empty_restaurant_metadata() -> dict[str, Any]:
+    return {"genre": []}
+
+
 def normalize_media_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     result = empty_media_metadata()
     if not isinstance(metadata, dict):
@@ -182,6 +215,18 @@ def normalize_music_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+def normalize_restaurant_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    result = empty_restaurant_metadata()
+    if not isinstance(metadata, dict):
+        return result
+
+    raw = metadata.get("genre")
+    if raw is not None:
+        result["genre"] = normalize_restaurant_genres(raw)
+
+    return result
+
+
 def set_media_field(
     metadata: dict[str, Any],
     path: tuple[str, ...],
@@ -199,6 +244,17 @@ def set_music_field(
 ) -> dict[str, Any]:
     result = normalize_music_metadata(metadata)
     set_path(result, path, normalize_music_value(path, value))
+    return result
+
+
+def set_restaurant_field(
+    metadata: dict[str, Any],
+    path: tuple[str, ...],
+    value: Any,
+) -> dict[str, Any]:
+    result = normalize_restaurant_metadata(metadata)
+    if path == ("genre",):
+        set_path(result, path, normalize_restaurant_genres(value))
     return result
 
 
@@ -238,6 +294,30 @@ def merge_music_metadata(
     protected_paths = protected_paths or set()
 
     for path in MUSIC_METADATA_PATHS:
+        if path in protected_paths:
+            continue
+        value = get_path(source, path)
+        if is_empty_metadata_value(value):
+            continue
+        current = get_path(result, path)
+        if overwrite or is_empty_metadata_value(current):
+            set_path(result, path, value)
+
+    return result
+
+
+def merge_restaurant_metadata(
+    base: dict[str, Any] | None,
+    incoming: dict[str, Any] | None,
+    *,
+    overwrite: bool = False,
+    protected_paths: set[tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
+    result = normalize_restaurant_metadata(base)
+    source = normalize_restaurant_metadata(incoming)
+    protected_paths = protected_paths or set()
+
+    for path in RESTAURANT_METADATA_PATHS:
         if path in protected_paths:
             continue
         value = get_path(source, path)
@@ -293,6 +373,7 @@ def external_rating_facts(metadata: dict[str, Any] | None) -> list[str]:
 def metadata_search_text(metadata: dict[str, Any] | None) -> str:
     normalized = normalize_media_metadata(metadata)
     music = normalize_music_metadata(metadata)
+    restaurant = normalize_restaurant_metadata(metadata)
     parts: list[str] = []
 
     for key in ["synopsis", "director", "watched_at"]:
@@ -326,6 +407,7 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
 
     parts.extend(music["personnel"])
     parts.extend(music["genre"])
+    parts.extend(restaurant["genre"])
 
     return " ".join(parts)
 
@@ -422,6 +504,16 @@ def normalize_genres(
         if canonical not in allowed_set or canonical in result:
             continue
         result.append(canonical)
+    return result
+
+
+def normalize_restaurant_genres(value: Any) -> list[str]:
+    result = []
+    for item in normalize_string_list(value):
+        key = normalize_genre_key(item)
+        canonical = RESTAURANT_GENRE_ALIASES.get(key, key)
+        if canonical and canonical not in result:
+            result.append(canonical)
     return result
 
 

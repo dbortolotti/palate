@@ -121,6 +121,10 @@ funk, hip_hop, jazz, latin, metal, pop, punk, r_and_b, reggae, rock, soul,
 soundtrack, world
 ```
 
+Restaurants can also store cuisine as metadata `genre`, for example `italian`,
+`mexican`, `japanese`, `thai`, or `modern_european`. Restaurant cuisine is
+not a numeric taste attribute; it is metadata used for recall and text matching.
+
 Your own 1-10 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between
 otherwise similar Palate matches.
@@ -286,6 +290,7 @@ Best practice:
   from the description.
 - For movies and series, include watched status or watched date when known. If
   you provide your own rating, Palate marks the item as watched.
+- For restaurants, include cuisine as `genre` when known.
 - For music, include artist, album, personnel, and genre when known.
 
 The client LLM may create a stable internal ID for the item. If you want to be
@@ -612,8 +617,8 @@ Palate responses usually include:
 - `memory_status`: whether this is something you wanted to try/watch, already
   tried/watched, liked, or disliked. Palate infers "want to try" from an item
   being stored without a rating or tried/watched signal.
-- `metadata`: movie and series metadata, music artist/album/personnel/genre,
-  and external ratings when stored
+- `metadata`: movie and series metadata, restaurant cuisine genre, music
+  artist/album/personnel/genre, and external ratings when stored
 - `negative_signals`: reasons an item was penalized or excluded
 - `unmatched_options`: pasted options that Palate could not match to memory
 
