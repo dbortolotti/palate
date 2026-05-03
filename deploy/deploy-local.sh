@@ -32,8 +32,7 @@ log() {
 
 restart_service() {
   if launchctl print "gui/${UID_VALUE}/${LABEL}" >/dev/null 2>&1; then
-    launchctl kickstart -k "gui/${UID_VALUE}/${LABEL}"
-    return 0
+    launchctl bootout "gui/${UID_VALUE}" "${PLIST_DEST}" || true
   fi
 
   launchctl bootstrap "gui/${UID_VALUE}" "${PLIST_DEST}"
