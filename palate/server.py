@@ -15,7 +15,13 @@ from starlette.responses import JSONResponse
 
 from .backup import backup_once, start_backup_scheduler
 from .core import build_grounding, rank_candidates, retrieve_candidates
-from .llm import explain_results, extract_entities, normalize_enrichment, parse_intent
+from .llm import (
+    explain_results,
+    extract_entities,
+    normalize_enrichment,
+    normalize_restaurant_enrichment,
+    parse_intent,
+)
 from .media import (
     is_media_type,
     is_music_type,
@@ -411,6 +417,7 @@ def palate_remember(
             "normalized_attribute_intervals_95"
         ],
         "metadata": memory["record"]["metadata"],
+        "sources": memory["sources"],
         "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
     }
@@ -488,6 +495,7 @@ def palate_lookup(
         "normalized_attribute_intervals_95": memory[
             "normalized_attribute_intervals_95"
         ],
+        "sources": memory["sources"],
         "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
     }
@@ -610,6 +618,7 @@ def palate_describe_item(
             "tool": "palate_remember",
             "arguments": suggested_arguments,
         },
+        "sources": memory["sources"],
         "ask_user": "No matching Palate memory was found. Ask whether to remember this item.",
         "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
@@ -733,6 +742,7 @@ def compute_memory_payload(
         },
         "normalized_attributes": normalized_attributes,
         "normalized_attribute_intervals_95": normalized_attribute_intervals_95,
+        "sources": enrichment.get("sources") or [],
         "server_llm_used": {"enrichment": used_server_enrichment},
         "warnings": metadata_warnings,
     }
@@ -842,6 +852,8 @@ def resolve_enrichment(
             "notes": description,
             "metadata": {},
         }, False
+    if entity_type == "restaurant":
+        return normalize_restaurant_enrichment(description), True
     return normalize_enrichment(description, entity_type), True
 
 

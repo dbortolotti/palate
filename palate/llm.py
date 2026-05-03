@@ -185,6 +185,89 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
     )
 
 
+def normalize_restaurant_enrichment(item_text: str) -> dict[str, Any]:
+    allowed_attributes = attribute_keys_for_type("restaurant")
+    response = client().responses.create(
+        model=os.getenv("PALATE_WEB_MODEL", MODEL),
+        tools=[
+            {
+                "type": "web_search",
+                "user_location": {
+                    "type": "approximate",
+                    "country": "GB",
+                    "city": "London",
+                    "region": "London",
+                    "timezone": "Europe/London",
+                },
+            }
+        ],
+        tool_choice="auto",
+        include=["web_search_call.action.sources"],
+        input=[
+            {
+                "role": "system",
+                "content": " ".join(
+                    [
+                        "Research the restaurant using current web sources, then normalize it into Palate's fixed restaurant attribute schema.",
+                        "Use the web for venue facts such as cuisine, menu, neighborhood, price tier, ambiance, and setting.",
+                        "Never invent new attribute keys.",
+                        "Each attribute must include value and interval_95.",
+                        "Each value must be in [0, 1]. Use 0 when not evidenced.",
+                        "Each interval_95 is the 95% interval for the true attribute value.",
+                        "Each interval_95 must include the value and stay within [0, 1].",
+                        "Use a narrow interval when web evidence is explicit and a wide interval when weak or absent.",
+                        "Extract explicitly evidenced cuisine as scored metadata cuisine.",
+                        "Use canonical cuisine values exactly as provided by the schema.",
+                        "For restaurant cuisine, use 0 when not evidenced and use other only when no listed cuisine category fits at 40% confidence.",
+                        "Mention the web facts that drove the scores in notes, without copying long source text.",
+                    ]
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "item_text": item_text,
+                        "entity_type": "restaurant",
+                        "allowed_attributes": allowed_attributes,
+                        "allowed_restaurant_genres": RESTAURANT_GENRES,
+                    }
+                ),
+            },
+        ],
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "palate_restaurant_web_enrichment",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["attributes", "notes", "metadata"],
+                    "properties": {
+                        "attributes": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": allowed_attributes,
+                            "properties": {
+                                key: attribute_value_schema()
+                                for key in allowed_attributes
+                            },
+                        },
+                        "notes": {"type": "string"},
+                        "metadata": restaurant_metadata_schema(),
+                    },
+                },
+            }
+        },
+    )
+    enrichment = json.loads(response.output_text)
+    sources = web_search_sources(response)
+    if sources:
+        enrichment["sources"] = sources
+    return enrichment
+
+
 def attribute_value_schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -286,6 +369,44 @@ def json_response(
         },
     )
     return json.loads(response.output_text)
+
+
+def web_search_sources(response: Any) -> list[dict[str, str]]:
+    sources_by_url: dict[str, dict[str, str]] = {}
+
+    def add_source(value: Any) -> None:
+        url = getattr(value, "url", None)
+        title = getattr(value, "title", None)
+        if isinstance(value, dict):
+            url = value.get("url")
+            title = value.get("title")
+        if isinstance(url, str) and url and url not in sources_by_url:
+            source = {"url": url}
+            if isinstance(title, str) and title:
+                source["title"] = title
+            sources_by_url[url] = source
+
+    for output_item in getattr(response, "output", []) or []:
+        action = getattr(output_item, "action", None)
+        if isinstance(output_item, dict):
+            action = output_item.get("action")
+        sources = getattr(action, "sources", None)
+        if isinstance(action, dict):
+            sources = action.get("sources")
+        for source in sources or []:
+            add_source(source)
+
+        content = getattr(output_item, "content", None)
+        if isinstance(output_item, dict):
+            content = output_item.get("content")
+        for content_item in content or []:
+            annotations = getattr(content_item, "annotations", None)
+            if isinstance(content_item, dict):
+                annotations = content_item.get("annotations")
+            for annotation in annotations or []:
+                add_source(annotation)
+
+    return list(sources_by_url.values())
 
 
 def metadata_schema_for_type(entity_type: str) -> dict[str, Any]:

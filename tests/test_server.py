@@ -325,7 +325,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
     def test_remember_stores_restaurant_cuisine_as_scored_metadata(self) -> None:
         with patch.object(
             server,
-            "normalize_enrichment",
+            "normalize_restaurant_enrichment",
             return_value={
                 "attributes": {},
                 "notes": "",
@@ -365,7 +365,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
     def test_remember_accepts_legacy_restaurant_genre_argument(self) -> None:
         with patch.object(
             server,
-            "normalize_enrichment",
+            "normalize_restaurant_enrichment",
             return_value={"attributes": {}, "notes": "", "metadata": {}},
         ):
             server.palate_remember(
@@ -391,11 +391,14 @@ class ServerToolBehaviorTest(unittest.TestCase):
     def test_describe_item_suggests_restaurant_cuisine_remember_payload(self) -> None:
         with patch.object(
             server,
-            "normalize_enrichment",
+            "normalize_restaurant_enrichment",
             return_value={
                 "attributes": {},
                 "notes": "Italian restaurant",
                 "metadata": {"genre": ["Trattoria", "Italian"]},
+                "sources": [
+                    {"title": "Casa Test", "url": "https://example.com/casa-test"}
+                ],
             },
         ):
             result = server.palate_describe_item(
@@ -405,6 +408,10 @@ class ServerToolBehaviorTest(unittest.TestCase):
             )
 
         self.assertEqual(set(result["enriched"]["metadata"]["cuisine"]), {"italian"})
+        self.assertEqual(
+            result["sources"],
+            [{"title": "Casa Test", "url": "https://example.com/casa-test"}],
+        )
         self.assertEqual(
             result["suggested_remember"]["arguments"]["cuisine"]["italian"]["value"],
             1.0,

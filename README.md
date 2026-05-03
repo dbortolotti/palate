@@ -31,6 +31,10 @@ Restaurant memories can store cuisine as scored metadata `cuisine`, with
 `other` used when no cuisine category reaches the 40% match threshold. Cuisine
 can be multi-label, so a restaurant can be both `italian` and
 `vegetarian_vegan` with separate confidence intervals.
+Unknown restaurant enrichment uses Responses web search to ground cuisine,
+menu, price tier, ambiance, and setting before scoring attributes. Lookup and
+describe responses return any consulted web `sources`; stored memory keeps the
+normalized Palate record rather than source URLs.
 
 ## Setup
 
