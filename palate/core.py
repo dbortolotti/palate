@@ -318,7 +318,6 @@ def memory_status(entity: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "rating": rating,
         "tried_or_watched": tried,
-        "want_to_try": not tried and rating is None,
         "saved": saved,
         "recommended_by": recommended_by,
     }

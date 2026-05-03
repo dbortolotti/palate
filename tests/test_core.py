@@ -320,7 +320,7 @@ class CoreBehaviorTest(unittest.TestCase):
         self.assertEqual(ranked["wine_mike"]["memory_status"]["status"], "liked")
         self.assertTrue(ranked["wine_mike"]["memory_status"]["tried_or_watched"])
         self.assertEqual(ranked["wine_future"]["memory_status"]["status"], "want_to_try")
-        self.assertTrue(ranked["wine_future"]["memory_status"]["want_to_try"])
+        self.assertNotIn("want_to_try", ranked["wine_future"]["memory_status"])
 
     def test_wide_attribute_intervals_are_discounted_in_ranking(self) -> None:
         self.store.upsert_entity(
