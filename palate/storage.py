@@ -75,6 +75,18 @@ def migrate(conn: sqlite3.Connection) -> None:
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS application_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tool_name TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('success', 'error')),
+          duration_ms REAL NOT NULL,
+          input_json TEXT NOT NULL,
+          output_json TEXT,
+          error_json TEXT,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS schema_migrations (
           key TEXT PRIMARY KEY,
           applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -597,6 +609,84 @@ class PalateStore:
 
         return feedback
 
+    def log_application_event(
+        self,
+        *,
+        tool_name: str,
+        status: str,
+        duration_ms: float,
+        inputs: dict[str, Any],
+        output: Any | None = None,
+        error: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO application_events (
+              tool_name,
+              status,
+              duration_ms,
+              input_json,
+              output_json,
+              error_json,
+              metadata_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                tool_name,
+                status,
+                float(duration_ms),
+                json.dumps(inputs, sort_keys=True, default=str),
+                json.dumps(output, sort_keys=True, default=str)
+                if output is not None
+                else None,
+                json.dumps(error, sort_keys=True, default=str)
+                if error is not None
+                else None,
+                json.dumps(metadata or {}, sort_keys=True, default=str),
+            ),
+        )
+        self.conn.commit()
+        return int(cursor.lastrowid)
+
+    def list_application_events(
+        self,
+        *,
+        limit: int = 100,
+        tool_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 1000))
+        params: list[Any] = []
+        where = ""
+        if tool_name:
+            where = "WHERE tool_name = ?"
+            params.append(tool_name)
+        rows = self.conn.execute(
+            f"""
+            SELECT *
+            FROM application_events
+            {where}
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (*params, limit),
+        ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "tool_name": row["tool_name"],
+                "status": row["status"],
+                "duration_ms": row["duration_ms"],
+                "input": parse_json_value(row["input_json"]),
+                "output": parse_json_value(row["output_json"]),
+                "error": parse_json_value(row["error_json"]),
+                "metadata": parse_metadata(row["metadata_json"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
 
 def normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
@@ -816,6 +906,15 @@ def parse_metadata(value: Any) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return metadata if isinstance(metadata, dict) else {}
+
+
+def parse_json_value(value: Any) -> Any:
+    if not value:
+        return None
+    try:
+        return json.loads(str(value))
+    except json.JSONDecodeError:
+        return None
 
 
 def unique_by_id(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:

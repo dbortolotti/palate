@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from functools import wraps
+import inspect
 import os
 from pathlib import Path
+import time
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -70,6 +73,114 @@ EntityType = Literal[
 USER_GUIDE_PATH = Path(__file__).resolve().parents[1] / "USER-GUIDE.md"
 
 
+def logged_tool(func):
+    """Record structured tool inputs, outputs, errors, and latency for evals."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        inputs = bind_tool_inputs(func, args, kwargs)
+        start = time.perf_counter()
+        try:
+            result = func(*args, **kwargs)
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start) * 1000
+            safe_log_application_event(
+                tool_name=func.__name__,
+                status="error",
+                duration_ms=duration_ms,
+                inputs=inputs,
+                error={
+                    "type": exc.__class__.__name__,
+                    "message": str(exc),
+                },
+            )
+            raise
+
+        duration_ms = (time.perf_counter() - start) * 1000
+        safe_log_application_event(
+            tool_name=func.__name__,
+            status="success",
+            duration_ms=duration_ms,
+            inputs=inputs,
+            output=loggable_tool_output(func.__name__, result),
+            metadata=tool_log_metadata(result),
+        )
+        return result
+
+    return wrapper
+
+
+def bind_tool_inputs(func, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    signature = inspect.signature(func)
+    bound = signature.bind_partial(*args, **kwargs)
+    bound.apply_defaults()
+    return dict(bound.arguments)
+
+
+def safe_log_application_event(
+    *,
+    tool_name: str,
+    status: str,
+    duration_ms: float,
+    inputs: dict[str, Any],
+    output: Any | None = None,
+    error: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        store.log_application_event(
+            tool_name=tool_name,
+            status=status,
+            duration_ms=duration_ms,
+            inputs=inputs,
+            output=output,
+            error=error,
+            metadata=metadata,
+        )
+    except Exception as exc:  # noqa: BLE001 - logging must not break tool calls.
+        print(f"Palate application logging failed: {exc}", flush=True)
+
+
+def loggable_tool_output(tool_name: str, result: Any) -> Any:
+    if tool_name == "palate_how_to" and isinstance(result, dict):
+        content = result.get("content") or ""
+        return {
+            "title": result.get("title"),
+            "mime_type": result.get("mime_type"),
+            "content_length": len(content),
+        }
+    return result
+
+
+def tool_log_metadata(result: Any) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    metadata: dict[str, Any] = {}
+    for key in (
+        "stored",
+        "source",
+        "found_existing",
+        "decision_id",
+        "deleted",
+        "logged",
+        "updated_existing_decision",
+    ):
+        if key in result:
+            metadata[key] = result[key]
+    if "server_llm_used" in result:
+        metadata["server_llm_used"] = result["server_llm_used"]
+    if "ranked_results" in result:
+        metadata["ranked_count"] = len(result.get("ranked_results") or [])
+    if "results" in result:
+        metadata["result_count"] = len(result.get("results") or [])
+    retrieval = result.get("retrieval")
+    if isinstance(retrieval, dict):
+        metadata["candidate_count"] = retrieval.get("candidate_count")
+        metadata["unmatched_option_count"] = len(retrieval.get("unmatched_options") or [])
+        metadata["needs_confirmation_count"] = len(retrieval.get("needs_confirmation") or [])
+    return metadata
+
+
 @mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
 async def healthz(_request: Request) -> JSONResponse:
     """Return a lightweight readiness signal for local deployment checks."""
@@ -85,6 +196,7 @@ async def healthz(_request: Request) -> JSONResponse:
 
 
 @mcp.tool()
+@logged_tool
 def palate_how_to() -> dict[str, Any]:
     """Return the Palate user guide with prompt patterns for client LLMs."""
     return {
@@ -107,12 +219,14 @@ def palate_how_to_resource() -> str:
 
 
 @mcp.tool()
+@logged_tool
 def palate_backup_now() -> dict[str, Any]:
     """Create an immediate SQLite and JSON backup, then clean up expired backups."""
     return backup_once()
 
 
 @mcp.tool()
+@logged_tool
 def palate_query(
     query: str,
     context: dict[str, Any] | None = None,
@@ -170,6 +284,7 @@ def palate_query(
 
 
 @mcp.tool()
+@logged_tool
 def palate_evaluate_options(
     query: str,
     options_text: str,
@@ -222,6 +337,7 @@ def palate_evaluate_options(
 
 
 @mcp.tool()
+@logged_tool
 def palate_remember(
     id: str,
     type: EntityType,
@@ -294,6 +410,7 @@ def palate_remember(
 
 
 @mcp.tool()
+@logged_tool
 def palate_lookup(
     type: EntityType,
     canonical_name: str,
@@ -368,6 +485,7 @@ def palate_lookup(
 
 
 @mcp.tool()
+@logged_tool
 def palate_describe_item(
     item_text: str,
     entity_type: EntityType,
@@ -742,6 +860,7 @@ def normalize_client_attributes(
 
 
 @mcp.tool()
+@logged_tool
 def palate_recall(
     query: str,
     context: dict[str, Any] | None = None,
@@ -762,6 +881,7 @@ def palate_recall(
 
 
 @mcp.tool()
+@logged_tool
 def palate_delete_record(id: str) -> dict[str, Any]:
     """Delete one explicit Palate memory by exact entity id."""
     deleted = store.delete_entity(id)
@@ -784,6 +904,7 @@ def palate_delete_record(id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+@logged_tool
 def palate_enrich_item(item_text: str, entity_type: EntityType) -> dict[str, Any]:
     """Normalize noisy item text into Palate's fixed attribute schema."""
     if entity_type not in ENTITY_TYPES:
@@ -876,6 +997,7 @@ def suggest_entity_id(entity_type: str, canonical_name: str) -> str:
 
 
 @mcp.tool()
+@logged_tool
 def palate_log_decision(
     chosen_entity_id: str,
     decision_id: int | None = None,

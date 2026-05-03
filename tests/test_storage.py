@@ -127,6 +127,47 @@ class StorageBehaviorTest(unittest.TestCase):
         matched = self.store.match_entities_by_names(["Repeat Wine", "repeat wine"])
         self.assertEqual([entity["id"] for entity in matched["matched"]], ["wine_repeat"])
 
+    def test_application_events_are_queryable_structured_logs(self) -> None:
+        event_id = self.store.log_application_event(
+            tool_name="palate_query",
+            status="success",
+            duration_ms=12.5,
+            inputs={"query": "oaky wine"},
+            output={"ranked_results": [{"id": "wine_a", "score": 1.2}]},
+            metadata={"server_llm_used": {"intent": False}},
+        )
+
+        events = self.store.list_application_events()
+
+        self.assertEqual(events[0]["id"], event_id)
+        self.assertEqual(events[0]["tool_name"], "palate_query")
+        self.assertEqual(events[0]["status"], "success")
+        self.assertEqual(events[0]["input"]["query"], "oaky wine")
+        self.assertEqual(events[0]["output"]["ranked_results"][0]["id"], "wine_a")
+        self.assertFalse(events[0]["metadata"]["server_llm_used"]["intent"])
+
+    def test_application_events_can_filter_by_tool_name(self) -> None:
+        self.store.log_application_event(
+            tool_name="palate_query",
+            status="success",
+            duration_ms=1,
+            inputs={},
+        )
+        self.store.log_application_event(
+            tool_name="palate_remember",
+            status="error",
+            duration_ms=2,
+            inputs={"id": "bad"},
+            error={"type": "ValueError", "message": "bad input"},
+        )
+
+        events = self.store.list_application_events(tool_name="palate_remember")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["tool_name"], "palate_remember")
+        self.assertEqual(events[0]["status"], "error")
+        self.assertEqual(events[0]["error"]["type"], "ValueError")
+
     def test_migration_converts_attribute_confidence_to_interval_and_removes_column(self) -> None:
         raw_db_path = self.temp_dir / "raw_attribute_confidence.sqlite"
         conn = sqlite3.connect(raw_db_path)

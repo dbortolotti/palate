@@ -37,6 +37,12 @@ class ServerToolBehaviorTest(unittest.TestCase):
             result["server_llm_used"],
             {"intent": True, "entity_extraction": False, "explanation": False},
         )
+        event = self.store.list_application_events(tool_name="palate_query")[0]
+        self.assertEqual(event["status"], "success")
+        self.assertEqual(event["input"]["query"], "oaky wine")
+        self.assertEqual(event["output"]["ranked_results"][0]["id"], "wine_mike")
+        self.assertEqual(event["metadata"]["ranked_count"], 1)
+        self.assertTrue(event["metadata"]["server_llm_used"]["intent"])
 
     def test_query_accepts_client_intent_without_server_intent_call(self) -> None:
         with patch.object(server, "parse_intent", side_effect=AssertionError("should not parse")):
@@ -48,6 +54,22 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertFalse(result["server_llm_used"]["intent"])
+
+    def test_tool_errors_are_logged_before_reraising(self) -> None:
+        with self.assertRaises(ValueError):
+            server.palate_remember(
+                id="bad",
+                type="wine",
+                canonical_name="Bad Wine",
+                description="",
+                fetch_external_ratings=False,
+            )
+
+        event = self.store.list_application_events(tool_name="palate_remember")[0]
+        self.assertEqual(event["status"], "error")
+        self.assertEqual(event["input"]["id"], "bad")
+        self.assertEqual(event["error"]["type"], "ValueError")
+        self.assertIn("description is required", event["error"]["message"])
 
     def test_backup_now_returns_snapshot_paths(self) -> None:
         with patch.object(server, "backup_once", return_value={"sqlite": "a.sqlite", "json": "a.json", "removed": []}):

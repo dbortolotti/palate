@@ -20,6 +20,7 @@ The core system owns:
 - deterministic ranking, including uncertainty discounts from 95% attribute intervals
 - negative filtering
 - decision logging and lightweight revealed-preference feedback
+- structured application event logging for future ranking and enrichment evals
 
 Movie and series memories can store structured metadata plus OMDb-backed IMDb
 and Rotten Tomatoes critic ratings. External ratings are stored as reference
@@ -89,6 +90,16 @@ state is inferred from a stored item that has no rating or tried/watched signal.
 Option matching returns transient `option_matches` confidence metadata:
 confident matches are 85% or higher, 50-85% matches are returned in
 `needs_confirmation`, and matches below 50% are discarded as unmatched.
+
+## Application Log
+
+Palate writes structured tool-call events to the SQLite `application_events`
+table. Each event records the tool name, success/error status, duration,
+input JSON, output JSON, error JSON, metadata, and timestamp. This is intended
+for future evals and tuning: ranking calls include parsed intent, retrieval,
+ranked results, match confidence, and server LLM usage; enrichment and remember
+calls include normalized attributes and intervals. `palate_how_to` logs only
+content metadata, not the full guide text.
 
 ## Ranking Eval
 
