@@ -60,7 +60,7 @@ media items.
 python3 -m palate.server
 ```
 
-For HTTP deployment behind Tailscale:
+For local HTTP deployment:
 
 ```sh
 PALATE_TRANSPORT=streamable-http PALATE_HOST=127.0.0.1 PALATE_PORT=8787 python3 -m palate.server
@@ -150,7 +150,7 @@ best configurations first.
 
 ## Deployment
 
-This repo includes a macOS LaunchAgent template and Tailscale Funnel notes in [deploy/README.md](deploy/README.md).
+This repo includes a macOS LaunchAgent template and Cloudflare Tunnel notes in [deploy/README.md](deploy/README.md).
 
 ## MCP Auth
 

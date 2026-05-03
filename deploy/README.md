@@ -1,19 +1,19 @@
 # Palate Deployment
 
-This repo is configured for a macOS LaunchAgent plus Tailscale Funnel. The
+This repo is configured for a macOS LaunchAgent plus Cloudflare Tunnel. The
 recommended production layout keeps the live service under `/Volumes/xpg_usb4/prod`
 instead of running from the development checkout.
 
 The service runs locally on:
 
 ```text
-http://127.0.0.1:8787/mcp
+http://127.0.0.1:8787/palate
 ```
 
-Tailscale Funnel exposes the authenticated MCP endpoint publicly on:
+Cloudflare Tunnel exposes the authenticated MCP endpoint publicly on:
 
 ```text
-https://modal.tail63a6b7.ts.net/palate/mcp
+https://mcp.dceb.net/palate
 ```
 
 ## Production Layout
@@ -99,27 +99,24 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.palate.mcp.plist
 launchctl kickstart -k gui/$(id -u)/com.palate.mcp
 ```
 
-Expose only Palate through Tailscale Funnel:
+The current public production route is managed by Cloudflare Tunnel:
 
-```sh
-tailscale serve reset
-tailscale funnel --bg --yes --set-path /palate http://127.0.0.1:8787
-tailscale funnel --bg --yes --set-path /.well-known/oauth-protected-resource/palate/mcp http://127.0.0.1:8787/.well-known/oauth-protected-resource/palate/mcp
-tailscale funnel --bg --yes --set-path /.well-known/oauth-authorization-server/palate http://127.0.0.1:8787/.well-known/oauth-authorization-server/palate
+```text
+~/.cloudflared/config.yml
 ```
 
-This intentionally removes unrelated Tailscale handlers before enabling Funnel.
-The extra path-suffixed `/.well-known/oauth-*` routes are needed for OAuth
-discovery for the `/palate/mcp` resource and the path-scoped authorization
-server without claiming the whole well-known namespace. Funnel makes these
-routes reachable from the public internet, so keep Palate auth enabled before
-leaving it on.
+with ingress for `mcp.dceb.net` pointing at `http://127.0.0.1:8787`. The
+Palate service itself serves `/palate`; Cloudflare preserves the request path.
+
+The previous Tailscale Funnel route is retired for production. Restore it only
+from git history if you intentionally need the old development exposure.
 
 Check status:
 
 ```sh
 launchctl print gui/$(id -u)/com.palate.mcp
-tailscale funnel status
+cloudflared tunnel ingress validate
+cloudflared tunnel info mcp
 ```
 
 Logs:
@@ -231,4 +228,5 @@ FastMCP validates Host headers to protect against DNS rebinding. The LaunchAgent
 localhost
 localhost:8787
 modal.tail63a6b7.ts.net
+mcp.dceb.net
 ```
