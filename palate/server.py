@@ -25,8 +25,8 @@ from .media import (
 )
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
-from .schema import ENTITY_TYPES, attribute_keys_for_type
-from .storage import attribute_interval_95, attribute_value, open_store
+from .schema import ENTITY_TYPES, INTENTS, attribute_keys_for_type
+from .storage import attribute_interval_95, attribute_value, clamp01, open_store
 
 
 load_dotenv(os.getenv("PALATE_ENV_PATH"))
@@ -117,15 +117,17 @@ def palate_query(
     query: str,
     context: dict[str, Any] | None = None,
     options_text: str | None = None,
-    explain: bool = True,
+    explain: bool = False,
+    intent: dict[str, Any] | None = None,
+    extracted_entities: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Interpret a taste query, rank matching memory deterministically, and explain results."""
+    """Rank matching memory. Pass intent/entities from the client to avoid server LLM calls."""
     context = context or {}
-    intent = parse_intent(query, context)
-    extraction = (
-        extract_entities(options_text, intent.get("entity_type"))
-        if options_text
-        else {"entities": []}
+    intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
+    extraction, extracted_with_llm = resolve_extraction(
+        options_text,
+        intent.get("entity_type"),
+        extracted_entities,
     )
 
     retrieval = retrieve_candidates(
@@ -159,6 +161,11 @@ def palate_query(
         "retrieval": describe_retrieval(retrieval),
         "ranked_results": grounding,
         "explanation": explanation,
+        "server_llm_used": {
+            "intent": parsed_intent_with_llm,
+            "entity_extraction": extracted_with_llm,
+            "explanation": bool(explain),
+        },
     }
 
 
@@ -167,11 +174,18 @@ def palate_evaluate_options(
     query: str,
     options_text: str,
     context: dict[str, Any] | None = None,
+    explain: bool = False,
+    intent: dict[str, Any] | None = None,
+    extracted_entities: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Extract entities from a pasted option set, then rank known matching options."""
+    """Rank known matching options. Pass intent/entities from the client to avoid server LLM calls."""
     context = context or {}
-    intent = parse_intent(query, context)
-    extraction = extract_entities(options_text, intent.get("entity_type"))
+    intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
+    extraction, extracted_with_llm = resolve_extraction(
+        options_text,
+        intent.get("entity_type"),
+        extracted_entities,
+    )
     retrieval = retrieve_candidates(store, intent, extraction["entities"])
     decision_feedback = store.decision_feedback(
         query,
@@ -183,7 +197,7 @@ def palate_evaluate_options(
         decision_feedback=decision_feedback,
     )
     grounding = build_grounding(ranked)
-    explanation = explain_results(query, intent, grounding)
+    explanation = explain_results(query, intent, grounding) if explain else None
 
     decision_id = store.log_decision(
         query=query,
@@ -199,6 +213,11 @@ def palate_evaluate_options(
         "retrieval": describe_retrieval(retrieval),
         "ranked_results": grounding,
         "explanation": explanation,
+        "server_llm_used": {
+            "intent": parsed_intent_with_llm,
+            "entity_extraction": extracted_with_llm,
+            "explanation": bool(explain),
+        },
     }
 
 
@@ -235,6 +254,8 @@ def palate_remember(
         type=type,
         canonical_name=canonical_name,
         description=description,
+        attributes=attributes,
+        attribute_intervals_95=attribute_intervals_95,
         rating=rating,
         tried=tried,
         recommended_by=recommended_by,
@@ -267,6 +288,7 @@ def palate_remember(
             "normalized_attribute_intervals_95"
         ],
         "metadata": memory["record"]["metadata"],
+        "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
     }
 
@@ -277,6 +299,8 @@ def palate_lookup(
     canonical_name: str,
     description: str,
     do_not_store: bool,
+    attributes: dict[str, Any] | None = None,
+    attribute_intervals_95: dict[str, dict[str, float]] | None = None,
     rating: float | None = None,
     tried: bool | None = None,
     recommended_by: str | None = None,
@@ -308,6 +332,8 @@ def palate_lookup(
         type=type,
         canonical_name=canonical_name,
         description=description,
+        attributes=attributes,
+        attribute_intervals_95=attribute_intervals_95,
         rating=rating,
         tried=tried,
         recommended_by=recommended_by,
@@ -336,6 +362,7 @@ def palate_lookup(
         "normalized_attribute_intervals_95": memory[
             "normalized_attribute_intervals_95"
         ],
+        "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
     }
 
@@ -345,6 +372,8 @@ def compute_memory_payload(
     type: EntityType,
     canonical_name: str,
     description: str,
+    attributes: dict[str, Any] | None,
+    attribute_intervals_95: dict[str, dict[str, float]] | None,
     rating: float | None,
     tried: bool | None,
     recommended_by: str | None,
@@ -384,7 +413,12 @@ def compute_memory_payload(
         watched=watched,
         watched_at=watched_at,
     )
-    enrichment = normalize_enrichment(description, type)
+    enrichment, used_server_enrichment = resolve_enrichment(
+        entity_type=type,
+        attributes=attributes,
+        attribute_intervals_95=attribute_intervals_95,
+        description=description,
+    )
     allowed_attributes = set(attribute_keys_for_type(type))
     normalized_attribute_payload = {
         key: value
@@ -440,7 +474,7 @@ def compute_memory_payload(
             "type": type,
             "canonical_name": canonical_name,
             "source_text": description,
-            "notes": notes if notes is not None else enrichment["notes"],
+            "notes": notes if notes is not None else enrichment.get("notes", description),
             "metadata": metadata,
             "attributes": normalized_attributes,
             "attribute_intervals_95": normalized_attribute_intervals_95,
@@ -448,18 +482,154 @@ def compute_memory_payload(
         },
         "normalized_attributes": normalized_attributes,
         "normalized_attribute_intervals_95": normalized_attribute_intervals_95,
+        "server_llm_used": {"enrichment": used_server_enrichment},
         "warnings": metadata_warnings,
     }
+
+
+def resolve_intent(
+    query: str,
+    context: dict[str, Any],
+    supplied_intent: dict[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    if supplied_intent:
+        return normalize_supplied_intent(supplied_intent), False
+    return parse_intent(query, context), True
+
+
+def normalize_supplied_intent(intent: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(intent, dict):
+        raise ValueError("intent must be an object when provided.")
+    entity_type = intent.get("entity_type")
+    if entity_type not in ENTITY_TYPES:
+        entity_type = None
+    allowed_attributes = set(attribute_keys_for_type(entity_type))
+    filters = intent.get("filters") if isinstance(intent.get("filters"), dict) else {}
+    min_rating = filters.get("min_rating")
+    if min_rating is not None:
+        min_rating = float(min_rating)
+        if not 1 <= min_rating <= 10:
+            min_rating = None
+
+    return {
+        "intent": intent.get("intent") if intent.get("intent") in INTENTS else "hybrid_query",
+        "attributes": [
+            attribute
+            for attribute in intent.get("attributes") or []
+            if attribute in allowed_attributes
+        ],
+        "context": {
+            key: bool(value)
+            for key, value in (intent.get("context") or {}).items()
+            if key in allowed_attributes and value
+        },
+        "filters": {
+            "min_rating": min_rating,
+            "recommended_by": filters.get("recommended_by"),
+        },
+        "entity_type": entity_type,
+        "search_text": str(intent.get("search_text") or ""),
+    }
+
+
+def resolve_extraction(
+    options_text: str | None,
+    expected_type: str | None,
+    supplied_entities: list[dict[str, Any]] | None,
+) -> tuple[dict[str, list[dict[str, Any]]], bool]:
+    if supplied_entities is not None:
+        return {"entities": normalize_supplied_entities(supplied_entities, expected_type)}, False
+    if options_text:
+        return extract_entities(options_text, expected_type), True
+    return {"entities": []}, False
+
+
+def normalize_supplied_entities(
+    entities: list[dict[str, Any]],
+    expected_type: str | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(entities, list):
+        raise ValueError("extracted_entities must be a list when provided.")
+    normalized = []
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        canonical_name = str(entity.get("canonical_name") or entity.get("name") or "").strip()
+        if not canonical_name:
+            continue
+        entity_type = entity.get("type") if entity.get("type") in ENTITY_TYPES else expected_type
+        normalized.append(
+            {
+                "canonical_name": canonical_name,
+                "type": entity_type,
+                "source_text": str(entity.get("source_text") or canonical_name),
+            }
+        )
+    return normalized
+
+
+def resolve_enrichment(
+    *,
+    entity_type: str,
+    attributes: dict[str, Any] | None,
+    attribute_intervals_95: dict[str, dict[str, float]] | None,
+    description: str,
+) -> tuple[dict[str, Any], bool]:
+    client_attributes = normalize_client_attributes(
+        entity_type,
+        attributes,
+        attribute_intervals_95,
+    )
+    if client_attributes:
+        return {
+            "attributes": client_attributes,
+            "notes": description,
+            "metadata": {},
+        }, False
+    return normalize_enrichment(description, entity_type), True
+
+
+def normalize_client_attributes(
+    entity_type: str,
+    attributes: dict[str, Any] | None,
+    attribute_intervals_95: dict[str, dict[str, float]] | None,
+) -> dict[str, Any]:
+    if not isinstance(attributes, dict):
+        return {}
+    allowed = set(attribute_keys_for_type(entity_type))
+    intervals = attribute_intervals_95 if isinstance(attribute_intervals_95, dict) else {}
+    normalized = {}
+    for key, value in attributes.items():
+        if key not in allowed:
+            continue
+        try:
+            point = clamp01(attribute_value(value))
+        except (TypeError, ValueError):
+            continue
+        interval = intervals.get(key) if isinstance(intervals.get(key), dict) else None
+        if isinstance(value, dict) and interval is None:
+            interval = value.get("interval_95") or value
+        normalized[key] = {
+            "value": point,
+            "interval_95": attribute_interval_95(
+                {
+                    "value": point,
+                    "interval_95": interval or {"lower": point, "upper": point},
+                }
+            ),
+        }
+    return normalized
 
 
 @mcp.tool()
 def palate_recall(
     query: str,
     context: dict[str, Any] | None = None,
+    intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Recall explicit Palate memory using LLM interpretation and deterministic ranking."""
+    """Recall explicit Palate memory. Pass intent from the client to avoid a server LLM call."""
     context = context or {}
-    intent = parse_intent(query, context)
+    intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
     retrieval = retrieve_candidates(store, intent)
     ranked = rank_candidates(retrieval["candidates"], intent)
     grounding = build_grounding(ranked)
@@ -467,6 +637,7 @@ def palate_recall(
         "intent": intent,
         "retrieval": describe_retrieval(retrieval),
         "results": grounding,
+        "server_llm_used": {"intent": parsed_intent_with_llm},
     }
 
 

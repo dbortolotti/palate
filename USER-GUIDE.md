@@ -279,10 +279,10 @@ Best practice:
 - If the user answers no, set `watched=false` for movies and series or
   `tried=false` for other record types, and do not include a personal rating.
 - Include who recommended it, if relevant.
-- Include concrete notes. Palate can normalize those notes into its fixed
-  attributes with a 95% interval for each attribute value.
-- Do not pass manual `attributes` or `attribute_intervals_95` to
-  `palate_remember`; Palate ignores client-supplied attributes and derives them
+- Include concrete notes. When you can confidently map the item to Palate's
+  fixed attribute schema, pass `attributes` and optional `attribute_intervals_95`
+  directly. Palate validates allowed keys by entity type and stores only valid
+  attributes. If you omit attributes, Palate uses its server LLM to derive them
   from the description.
 - For movies and series, include watched status or watched date when known. If
   you provide your own rating, Palate marks the item as watched.
@@ -319,7 +319,8 @@ Best practice:
 - Call `palate_lookup` only when the user explicitly says not to store the item.
 - Set `do_not_store=true`.
 - Follow the same rating and metadata guidance as `palate_remember`.
-- Do not pass manual `attributes` or `attribute_intervals_95`.
+- Pass `attributes` and optional `attribute_intervals_95` when you can map them
+  confidently; omit them when you want Palate's server LLM to enrich the item.
 
 ### Recall Something Fuzzy
 
@@ -470,6 +471,21 @@ Use Palate. I am choosing a wine for tonight. I want something premium,
 full-bodied, oaky, and woody. Rank the best matches and explain the actual
 signals.
 ```
+
+Cost-aware client behavior:
+
+- Prefer passing a parsed `intent` to `palate_query`, `palate_evaluate_options`,
+  and `palate_recall` when the entity type, attributes, filters, and search text
+  are clear. This avoids a server LLM intent-parsing call.
+- Prefer passing `extracted_entities` to `palate_evaluate_options` when you can
+  identify the option names from the pasted list. This avoids a server LLM
+  entity-extraction call.
+- Leave `explain=false` unless the user explicitly asks Palate itself to write
+  the explanation. You can explain the returned grounded JSON in the client.
+- For memory capture, pass valid `attributes` and `attribute_intervals_95` when
+  confident. Omit them when server-side enrichment quality matters more than
+  cost.
+- Check `server_llm_used` in tool responses when auditing cost.
 
 ### Option Set Evaluation
 

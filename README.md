@@ -60,9 +60,9 @@ python3 -m unittest discover -s tests
 
 ## MCP Tools
 
-- `palate_query`: interpret a free-form taste query, rank memory, and explain results
-- `palate_evaluate_options`: extract and evaluate a pasted option set
-- `palate_remember`: store a taste memory with required description text, optional watched/tried status, personal rating, attributes derived from description, and optional OMDb movie or series ratings
+- `palate_query`: rank memory from a free-form taste query; pass parsed intent from the client to avoid server LLM parsing
+- `palate_evaluate_options`: evaluate a pasted option set; pass extracted entities from the client to avoid server LLM extraction
+- `palate_remember`: store a taste memory with required description text, optional watched/tried status, personal rating, client-supplied or server-derived attributes, and optional OMDb movie or series ratings
 - `palate_lookup`: compute the Palate record, attributes, metadata, and signals without storing; use only when the user explicitly says not to store
 - `palate_recall`: recall matching explicit memory
 - `palate_delete_record`: delete one explicit memory by exact entity ID
@@ -74,6 +74,13 @@ python3 -m unittest discover -s tests
 The same guide is also exposed as the MCP resource `palate://how-to`.
 
 Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
+
+Server LLM calls are optional on the common path. Query, option evaluation, and
+recall tools accept client-supplied `intent`; option tools accept
+`extracted_entities`; memory tools accept validated `attributes` and
+`attribute_intervals_95`. Explanations default to off so the client can explain
+grounded JSON without a paid server call. Responses include `server_llm_used`
+for cost auditing.
 
 ## Ranking Eval
 

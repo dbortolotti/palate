@@ -33,6 +33,21 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIsNone(result["explanation"])
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertFalse(result["retrieval"]["constrained_to_options"])
+        self.assertEqual(
+            result["server_llm_used"],
+            {"intent": True, "entity_extraction": False, "explanation": False},
+        )
+
+    def test_query_accepts_client_intent_without_server_intent_call(self) -> None:
+        with patch.object(server, "parse_intent", side_effect=AssertionError("should not parse")):
+            result = server.palate_query(
+                "oaky wine",
+                intent=base_intent(entity_type="wine", attributes=["oak"]),
+                explain=False,
+            )
+
+        self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
+        self.assertFalse(result["server_llm_used"]["intent"])
 
     def test_backup_now_returns_snapshot_paths(self) -> None:
         with patch.object(server, "backup_once", return_value={"sqlite": "a.sqlite", "json": "a.json", "removed": []}):
@@ -93,6 +108,27 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
         self.assertEqual(result["retrieval"]["unmatched_options"], ["Unknown Cellar Cabernet"])
 
+    def test_evaluate_options_accepts_client_entities_without_extraction_call(self) -> None:
+        with patch.object(server, "parse_intent", side_effect=AssertionError("should not parse")), \
+             patch.object(server, "extract_entities", side_effect=AssertionError("should not extract")), \
+             patch.object(server, "explain_results", side_effect=AssertionError("should not explain")):
+            result = server.palate_evaluate_options(
+                "which wine",
+                "Mike's Cabernet\nUnknown Cellar Cabernet",
+                intent=base_intent(entity_type="wine"),
+                extracted_entities=[
+                    {"canonical_name": "Mike's Cabernet", "type": "wine"},
+                    {"canonical_name": "Unknown Cellar Cabernet", "type": "wine"},
+                ],
+            )
+
+        self.assertEqual(result["ranked_results"][0]["id"], "wine_mike")
+        self.assertEqual(result["retrieval"]["unmatched_options"], ["Unknown Cellar Cabernet"])
+        self.assertEqual(
+            result["server_llm_used"],
+            {"intent": False, "entity_extraction": False, "explanation": False},
+        )
+
     def test_recall_uses_parsed_search_text(self) -> None:
         with patch.object(server, "parse_intent", return_value=base_intent(entity_type="restaurant", search_text="place with a view")):
             result = server.palate_recall("that place with a view")
@@ -117,27 +153,14 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["id"], "missing")
         self.assertIn("No Palate record found", result["error"])
 
-    def test_remember_ignores_client_attributes_and_stores_enrichment(self) -> None:
-        with patch.object(
-            server,
-            "normalize_enrichment",
-            return_value={
-                "attributes": {
-                    "oak": {"value": 0.2, "interval_95": {"lower": 0.1, "upper": 0.3}},
-                    "premium": {
-                        "value": 0.4,
-                        "interval_95": {"lower": 0.2, "upper": 0.6},
-                    },
-                },
-                "notes": "normalized",
-            },
-        ):
+    def test_remember_accepts_valid_client_attributes_without_server_enrichment(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not enrich")):
             result = server.palate_remember(
                 id="wine_new",
                 type="wine",
                 canonical_name="New Wine",
                 description="rich and oaky",
-                attributes={"oak": 0.9},
+                attributes={"oak": 0.9, "premium": 0.4},
                 attribute_intervals_95={"oak": {"lower": 0.85, "upper": 0.95}},
                 rating=10,
                 recommended_by="Sam",
@@ -145,20 +168,21 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         stored = next(entity for entity in self.store.list_entities() if entity["id"] == "wine_new")
         self.assertTrue(result["stored"])
-        self.assertEqual(stored["attributes"]["oak"], 0.2)
+        self.assertEqual(stored["attributes"]["oak"], 0.9)
         self.assertEqual(stored["attributes"]["premium"], 0.4)
         self.assertEqual(
             stored["attribute_intervals_95"]["oak"],
-            {"lower": 0.1, "upper": 0.3},
+            {"lower": 0.85, "upper": 0.95},
         )
         self.assertEqual(
             stored["attribute_intervals_95"]["premium"],
-            {"lower": 0.2, "upper": 0.6},
+            {"lower": 0.4, "upper": 0.4},
         )
         self.assertEqual(
             result["normalized_attribute_intervals_95"]["oak"],
-            {"lower": 0.1, "upper": 0.3},
+            {"lower": 0.85, "upper": 0.95},
         )
+        self.assertEqual(result["server_llm_used"], {"enrichment": False})
         self.assertEqual(
             {signal["type"] for signal in stored["signals"]},
             {"rating", "tried", "recommended_by"},
