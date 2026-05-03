@@ -448,8 +448,10 @@ Best practice:
 
 ### Delete A Memory
 
-Use this when you want to remove one saved Palate record. Deletion uses the
-exact internal entity ID, not fuzzy title matching.
+Use this when you want to remove one saved Palate record. Deletion accepts an
+exact internal entity ID or a fuzzy name. Palate deletes automatically only when
+the match is at least 99% confident; otherwise it returns candidate matches for
+the user to choose from.
 
 Good prompts:
 
@@ -463,7 +465,8 @@ Use Palate to delete the Palate record with id movie_heat_1995.
 
 Best practice:
 
-- Recall the item first if you do not know the exact ID.
+- If Palate returns `needs_confirmation`, show the candidate IDs and names and
+  ask the user which one to delete.
 - Create a backup first if the record matters and you may want to recover it.
 
 ### Create A Backup

@@ -75,7 +75,7 @@ python3 -m unittest discover -s tests
 - `palate_lookup`: compute the Palate record, attributes, metadata, and signals without storing; use only when the user explicitly says not to store
 - `palate_describe_item`: read-only item description; returns existing memory when found, otherwise fills missing fields/enriches the item and returns a suggested `palate_remember` payload without storing
 - `palate_recall`: recall matching explicit memory
-- `palate_delete_record`: delete one explicit memory by exact entity ID
+- `palate_delete_record`: delete one explicit memory by exact ID or 99%+ fuzzy name match; below 99%, returns candidates for user confirmation
 - `palate_log_decision`: record what the user chose
 - `palate_backup_now`: create an immediate SQLite and JSON backup
 - `palate_how_to`: return the user guide and prompt patterns for client LLMs

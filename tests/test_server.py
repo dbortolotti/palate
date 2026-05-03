@@ -192,6 +192,26 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["id"], "missing")
         self.assertIn("No Palate record found", result["error"])
 
+    def test_delete_record_removes_exact_name(self) -> None:
+        result = server.palate_delete_record("Mike's Cabernet")
+
+        self.assertTrue(result["deleted"])
+        self.assertEqual(result["id"], "wine_mike")
+        self.assertEqual(result["query"], "Mike's Cabernet")
+        self.assertEqual(result["record"]["name"], "Mike's Cabernet")
+
+    def test_delete_record_returns_candidates_for_fuzzy_name(self) -> None:
+        result = server.palate_delete_record("Mike Syrah")
+
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["id"], "Mike Syrah")
+        self.assertEqual(result["needs_confirmation"][0]["matched_id"], "wine_mike")
+        self.assertLess(result["needs_confirmation"][0]["confidence"], 0.99)
+        self.assertIn(
+            "wine_mike",
+            {entity["id"] for entity in self.store.list_entities()},
+        )
+
     def test_remember_accepts_valid_client_attributes_without_server_enrichment(self) -> None:
         with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not enrich")):
             result = server.palate_remember(

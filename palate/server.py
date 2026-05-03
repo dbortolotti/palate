@@ -40,7 +40,13 @@ from .media import (
 from .oauth import build_auth_components, register_auth_routes
 from .omdb import fetch_omdb_metadata
 from .schema import ENTITY_TYPES, INTENTS, attribute_keys_for_type
-from .storage import attribute_interval_95, attribute_value, clamp01, open_store
+from .storage import (
+    attribute_interval_95,
+    attribute_value,
+    clamp01,
+    name_match_confidence,
+    open_store,
+)
 
 
 load_dotenv(os.getenv("PALATE_ENV_PATH"))
@@ -913,24 +919,97 @@ def palate_recall(
 @mcp.tool()
 @logged_tool
 def palate_delete_record(id: str) -> dict[str, Any]:
-    """Delete one explicit Palate memory by exact entity id."""
-    deleted = store.delete_entity(id)
+    """Delete one Palate memory by exact id or very high-confidence fuzzy name."""
+    if not isinstance(id, str) or not id.strip():
+        raise ValueError("id is required and must not be blank.")
+    query = id.strip()
+
+    exact = entity_by_any_id(query)
+    if exact is not None:
+        deleted = store.delete_entity(exact["id"])
+        return deleted_record_response(query=query, deleted=deleted, match=None)
+
+    matches = fuzzy_delete_candidates(query)
+    if not matches:
+        return {
+            "deleted": False,
+            "id": query,
+            "query": query,
+            "candidates": [],
+            "needs_confirmation": [],
+            "error": f"No Palate record found for id or name {query}.",
+        }
+
+    best = matches[0]
+    if best["confidence"] >= 0.99:
+        deleted = store.delete_entity(best["matched_id"])
+        return deleted_record_response(query=query, deleted=deleted, match=best)
+
+    return {
+        "deleted": False,
+        "id": query,
+        "query": query,
+        "candidates": matches,
+        "needs_confirmation": matches,
+        "ask_user": (
+            "I found possible Palate memories, but no match was at least 99% "
+            "confident. Ask the user to choose one by id before deleting."
+        ),
+        "error": "Delete requires confirmation below 99% match confidence.",
+    }
+
+
+def entity_by_any_id(entity_id: str) -> dict[str, Any] | None:
+    for entity in store.list_entities():
+        if entity.get("id") == entity_id:
+            return entity
+    return None
+
+
+def fuzzy_delete_candidates(query: str) -> list[dict[str, Any]]:
+    candidates = []
+    for entity in store.list_entities():
+        confidence = name_match_confidence(query, entity.get("canonical_name", ""))
+        if confidence < 0.5:
+            continue
+        candidates.append(
+            {
+                "input": query,
+                "matched_id": entity["id"],
+                "matched_name": entity["canonical_name"],
+                "matched_type": entity["type"],
+                "confidence": round(confidence, 3),
+            }
+        )
+    return sorted(candidates, key=lambda match: match["confidence"], reverse=True)
+
+
+def deleted_record_response(
+    *,
+    query: str,
+    deleted: dict[str, Any] | None,
+    match: dict[str, Any] | None,
+) -> dict[str, Any]:
     if deleted is None:
         return {
             "deleted": False,
-            "id": id,
-            "error": f"No Palate record found for id {id}.",
+            "id": query,
+            "query": query,
+            "error": f"No Palate record found for id or name {query}.",
         }
-
-    return {
+    response = {
         "deleted": True,
-        "id": id,
+        "id": deleted["id"],
+        "query": query,
         "record": {
             "id": deleted["id"],
             "name": deleted["canonical_name"],
             "type": deleted["type"],
         },
     }
+    if match is not None:
+        response["match"] = match
+    return response
 
 
 def match_existing_memory(name: str, entity_type: str) -> dict[str, Any]:
