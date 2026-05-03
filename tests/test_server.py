@@ -299,7 +299,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
     def test_remember_stores_explicit_tried_signal(self) -> None:
         with patch.object(
             server,
-            "normalize_enrichment",
+            "normalize_restaurant_enrichment",
             return_value={"attributes": {}, "notes": "", "metadata": {}},
         ):
             server.palate_remember(
