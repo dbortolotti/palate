@@ -274,10 +274,54 @@ def build_grounding(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "attribute_details": result["entity"].get("attribute_details") or {},
             "signal_facts": result["facts"]["signal_facts"],
             "negative_signals": result["facts"]["negative_signals"],
+            "memory_status": memory_status(result["entity"]),
             "metadata": result["entity"].get("metadata") or {},
         }
         for result in results[:5]
     ]
+
+
+def memory_status(entity: dict[str, Any]) -> dict[str, Any]:
+    rating = None
+    tried = False
+    recommended_by = []
+    saved = False
+
+    for signal in entity.get("signals") or []:
+        signal_type = signal.get("type")
+        value = signal.get("value")
+        if signal_type == "rating":
+            try:
+                rating = max(rating or 0.0, float(value))
+            except (TypeError, ValueError):
+                pass
+        if signal_type == "tried":
+            tried = True
+        if signal_type == "recommended_by":
+            recommended_by.append(value)
+        if signal_type == "saved":
+            saved = True
+
+    metadata = entity.get("metadata") or {}
+    watched = bool(metadata.get("watched")) if is_media_type(entity.get("type")) else False
+    tried = tried or watched or rating is not None
+
+    status = "want_to_watch" if is_media_type(entity.get("type")) else "want_to_try"
+    if tried:
+        status = "watched" if is_media_type(entity.get("type")) else "tried"
+    if rating is not None and rating >= 7:
+        status = "liked"
+    if rating is not None and rating <= 4:
+        status = "disliked"
+
+    return {
+        "status": status,
+        "rating": rating,
+        "tried_or_watched": tried,
+        "want_to_try": not tried and rating is None,
+        "saved": saved,
+        "recommended_by": recommended_by,
+    }
 
 
 def filter_by_type(entities: list[dict[str, Any]], entity_type: str | None) -> list[dict[str, Any]]:

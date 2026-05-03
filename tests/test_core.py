@@ -293,6 +293,35 @@ class CoreBehaviorTest(unittest.TestCase):
             {"value": 0.8, "interval_95": {"lower": 0.8, "upper": 0.8}},
         )
 
+    def test_grounding_surfaces_memory_status_for_menu_matches(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "wine_future",
+                "type": "wine",
+                "canonical_name": "Future Wine",
+                "notes": "Stored because I wanted to try it.",
+                "attributes": {"oak": 0.5},
+            }
+        )
+        intent = base_intent(entity_type="wine")
+        retrieval = retrieve_candidates(
+            self.store,
+            intent,
+            [
+                {"canonical_name": "Mike's Cabernet", "type": "wine"},
+                {"canonical_name": "Future Wine", "type": "wine"},
+            ],
+        )
+        ranked = {
+            result["id"]: result
+            for result in build_grounding(rank_candidates(retrieval["candidates"], intent))
+        }
+
+        self.assertEqual(ranked["wine_mike"]["memory_status"]["status"], "liked")
+        self.assertTrue(ranked["wine_mike"]["memory_status"]["tried_or_watched"])
+        self.assertEqual(ranked["wine_future"]["memory_status"]["status"], "want_to_try")
+        self.assertTrue(ranked["wine_future"]["memory_status"]["want_to_try"])
+
     def test_wide_attribute_intervals_are_discounted_in_ranking(self) -> None:
         self.store.upsert_entity(
             {

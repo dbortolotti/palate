@@ -578,6 +578,9 @@ Palate responses usually include:
 - `attribute_intervals_95` and `attribute_details`: interval and value detail
   for stored attributes
 - `signal_facts`: ratings, recommendations, saved/tried signals, or text matches
+- `memory_status`: whether this is something you wanted to try/watch, already
+  tried/watched, liked, or disliked. Palate infers "want to try" from an item
+  being stored without a rating or tried/watched signal.
 - `metadata`: movie and series metadata, music artist/album/personnel/genre,
   and external ratings when stored
 - `negative_signals`: reasons an item was penalized or excluded
@@ -589,6 +592,13 @@ Ask the client to show these fields when you want a more debuggable answer:
 Use Palate and show the decision_id, matched attributes, signal facts, and any
 unmatched options.
 ```
+
+When evaluating a photo or pasted menu, always surface `memory_status` in the
+client answer. In particular, call out:
+
+- items already stored but not tried as "you wanted to try this"
+- items with a good rating as "you tried this and liked it"
+- items with a low rating or dislike signal as a caution
 
 ## Troubleshooting Client Behavior
 

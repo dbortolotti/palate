@@ -82,6 +82,10 @@ recall tools accept client-supplied `intent`; option tools accept
 grounded JSON without a paid server call. Responses include `server_llm_used`
 for cost auditing.
 
+Ranked results include `memory_status` so menu/photo evaluations can distinguish
+"you wanted to try this" from "you tried this and liked it." The wanted-to-try
+state is inferred from a stored item that has no rating or tried/watched signal.
+
 ## Ranking Eval
 
 Ranking changes can be checked with a deterministic eval set. Cases provide a
