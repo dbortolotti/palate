@@ -36,7 +36,6 @@ restart_service() {
   fi
 
   launchctl bootstrap "gui/${UID_VALUE}" "${PLIST_DEST}"
-  launchctl kickstart -k "gui/${UID_VALUE}/${LABEL}"
 }
 
 wait_for_health() {
