@@ -73,10 +73,9 @@ python3 -m unittest discover -s tests
 - `palate_evaluate_options`: evaluate a pasted option set; pass extracted entities from the client to avoid server LLM extraction
 - `palate_remember`: store a taste memory with required description text, optional watched/tried status, personal rating, client-supplied or server-derived attributes, and optional OMDb movie or series ratings
 - `palate_lookup`: compute the Palate record, attributes, metadata, and signals without storing; use only when the user explicitly says not to store
-- `palate_describe_item`: read-only item description; returns existing memory when found, otherwise enriches the item and returns a suggested `palate_remember` payload without storing
+- `palate_describe_item`: read-only item description; returns existing memory when found, otherwise fills missing fields/enriches the item and returns a suggested `palate_remember` payload without storing
 - `palate_recall`: recall matching explicit memory
 - `palate_delete_record`: delete one explicit memory by exact entity ID
-- `palate_enrich_item`: normalize noisy text into the fixed attribute schema with 95% intervals
 - `palate_log_decision`: record what the user chose
 - `palate_backup_now`: create an immediate SQLite and JSON backup
 - `palate_how_to`: return the user guide and prompt patterns for client LLMs

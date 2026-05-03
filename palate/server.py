@@ -933,15 +933,6 @@ def palate_delete_record(id: str) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
-@logged_tool
-def palate_enrich_item(item_text: str, entity_type: EntityType) -> dict[str, Any]:
-    """Normalize noisy item text into Palate's fixed attribute schema."""
-    if entity_type not in ENTITY_TYPES:
-        raise ValueError(f"entity_type must be one of: {', '.join(ENTITY_TYPES)}")
-    return normalize_enrichment(item_text, entity_type)
-
-
 def match_existing_memory(name: str, entity_type: str) -> dict[str, Any]:
     matches = store.match_entities_by_names([name])
     typed_matches = [

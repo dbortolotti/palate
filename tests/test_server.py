@@ -567,6 +567,11 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIn("do_not_store", lookup_tool.inputSchema["required"])
         self.assertIn("explicitly says not to store", lookup_tool.description)
 
+    def test_enrich_item_is_not_public_mcp_tool(self) -> None:
+        tools = asyncio.run(server.mcp.list_tools())
+
+        self.assertNotIn("palate_enrich_item", {tool.name for tool in tools})
+
     def test_remember_stores_music_metadata(self) -> None:
         with patch.object(
             server,
@@ -813,12 +818,6 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertFalse(result["logged"])
         self.assertIn("No decision found", result["error"])
-
-    def test_enrich_item_rejects_unknown_entity_type_before_llm_call(self) -> None:
-        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
-            with self.assertRaises(ValueError):
-                server.palate_enrich_item("text", "book")
-
 
 def seed_server_store(store) -> None:
     store.upsert_entity(

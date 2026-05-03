@@ -365,6 +365,9 @@ Best practice:
   framing; otherwise `item_text` can be the item name and description.
 - Pass `entity_type` from client understanding when obvious. For the example
   above, use `wine`.
+- Use this path for bare item names or partial descriptions where restaurant
+  cuisine, ambiance, menu, price tier, or other descriptive fields may need web
+  grounding.
 - If Palate returns `source="memory"`, answer from the existing record.
 - If Palate returns `source="memory_confirmation_required"`, ask the user to
   confirm the possible match before using or updating it.
@@ -416,30 +419,6 @@ and the matching signals:
 ```text
 Use Palate to recall this, and show me the matched signals for each candidate.
 ```
-
-### Normalize Or Enrich Item Notes
-
-Use this when you want noisy description text converted into Palate's fixed
-attribute schema before storing or comparing it.
-
-Good prompts:
-
-```text
-Use Palate to enrich this wine description:
-"Full-bodied, cedar, vanilla oak, long finish, expensive-feeling."
-```
-
-```text
-Use Palate to normalize this restaurant note:
-"Quiet room, city view, formal but comfortable, not very lively."
-```
-
-This is useful when:
-
-- you pasted tasting notes
-- you copied a restaurant description
-- you want to check how Palate interprets the attributes and 95% intervals
-  before storing the item
 
 ### Log What You Chose
 
