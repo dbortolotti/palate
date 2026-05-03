@@ -322,14 +322,25 @@ class ServerToolBehaviorTest(unittest.TestCase):
             {"rating", "tried"},
         )
 
-    def test_remember_stores_restaurant_cuisine_as_genre_metadata(self) -> None:
+    def test_remember_stores_restaurant_cuisine_as_scored_metadata(self) -> None:
         with patch.object(
             server,
             "normalize_enrichment",
             return_value={
                 "attributes": {},
                 "notes": "",
-                "metadata": {"genre": ["Italian", "Pizzeria"]},
+                "metadata": {
+                    "cuisine": {
+                        "italian": {
+                            "value": 0.9,
+                            "interval_95": {"lower": 0.75, "upper": 0.98},
+                        },
+                        "vegetarian_vegan": {
+                            "value": 0.7,
+                            "interval_95": {"lower": 0.45, "upper": 0.85},
+                        },
+                    }
+                },
             },
         ):
             server.palate_remember(
@@ -337,7 +348,6 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 type="restaurant",
                 canonical_name="Casa Test",
                 description="Italian neighborhood restaurant.",
-                genre=["Mexican", "Peruvian", "Nordic"],
             )
 
         stored = next(
@@ -346,9 +356,39 @@ class ServerToolBehaviorTest(unittest.TestCase):
             if entity["id"] == "restaurant_italian"
         )
 
-        self.assertEqual(stored["metadata"]["genre"], ["mexican", "latin_american", "other"])
+        self.assertEqual(
+            set(stored["metadata"]["cuisine"]),
+            {"italian", "vegetarian_vegan"},
+        )
+        self.assertEqual(stored["metadata"]["cuisine"]["italian"]["value"], 0.9)
 
-    def test_describe_item_suggests_restaurant_genre_remember_payload(self) -> None:
+    def test_remember_accepts_legacy_restaurant_genre_argument(self) -> None:
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            server.palate_remember(
+                id="restaurant_legacy_genre",
+                type="restaurant",
+                canonical_name="Casa Legacy",
+                description="Neighborhood restaurant.",
+                genre=["Mexican", "Peruvian", "Nordic"],
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "restaurant_legacy_genre"
+        )
+
+        self.assertEqual(
+            set(stored["metadata"]["cuisine"]),
+            {"mexican", "latin_american"},
+        )
+        self.assertEqual(stored["metadata"]["cuisine"]["mexican"]["value"], 1.0)
+
+    def test_describe_item_suggests_restaurant_cuisine_remember_payload(self) -> None:
         with patch.object(
             server,
             "normalize_enrichment",
@@ -364,10 +404,10 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 canonical_name="Casa Test",
             )
 
-        self.assertEqual(result["enriched"]["metadata"]["genre"], ["italian"])
+        self.assertEqual(set(result["enriched"]["metadata"]["cuisine"]), {"italian"})
         self.assertEqual(
-            result["suggested_remember"]["arguments"]["genre"],
-            ["italian"],
+            result["suggested_remember"]["arguments"]["cuisine"]["italian"]["value"],
+            1.0,
         )
 
     def test_lookup_computes_memory_without_storing(self) -> None:

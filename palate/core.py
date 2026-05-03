@@ -9,7 +9,10 @@ from .media import (
     external_rating_facts,
     external_rating_tiebreak,
     is_media_type,
+    is_restaurant_type,
     metadata_search_text,
+    normalize_restaurant_genres,
+    normalize_restaurant_metadata,
 )
 
 
@@ -25,6 +28,7 @@ class RankingWeights:
     dislike_penalty: float = 1.5
     attribute_match_cap: float = 1.5
     attribute_uncertainty_width_penalty: float = 0.5
+    cuisine_match_cap: float = 1.2
     chosen_feedback: float = 0.15
     rejected_feedback: float = 0.1
     decision_feedback_cap: float = 0.45
@@ -87,6 +91,7 @@ def rank_candidates(
 ) -> list[dict[str, Any]]:
     avoid_below = (intent.get("filters") or {}).get("min_rating")
     recommended_by = (intent.get("filters") or {}).get("recommended_by")
+    cuisines = (intent.get("filters") or {}).get("cuisine") or []
     required = intent.get("attributes") or []
     context = intent.get("context") or {}
     search_text = intent.get("search_text") or ""
@@ -101,6 +106,7 @@ def rank_candidates(
             context=context,
             avoid_below=avoid_below,
             recommended_by=recommended_by,
+            cuisines=cuisines,
             search_text=search_text,
             decision_feedback=decision_feedback.get(entity.get("id"), {}),
             weights=weights,
@@ -126,6 +132,7 @@ def score_entity(
     avoid_below: float | None,
     recommended_by: str | None,
     search_text: str,
+    cuisines: list[str] | None = None,
     decision_feedback: dict[str, Any] | None = None,
     weights: RankingWeights | None = None,
 ) -> dict[str, Any]:
@@ -136,6 +143,8 @@ def score_entity(
         "attribute_match": 0.0,
         "attribute_match_raw": 0.0,
         "attribute_uncertainty_penalty": 0.0,
+        "cuisine_match": 0.0,
+        "cuisine_match_raw": 0.0,
         "context_match": 0.0,
         "search_match": 0.0,
         "provenance": 0.0,
@@ -217,6 +226,31 @@ def score_entity(
             f"attribute match capped at {weights.attribute_match_cap:g}"
         )
 
+    cuisine_match_raw = 0.0
+    cuisines = normalize_restaurant_genres(cuisines or [])
+    if cuisines and is_restaurant_type(entity.get("type")):
+        metadata_cuisine = (
+            normalize_restaurant_metadata(entity.get("metadata") or {}).get("cuisine")
+            or {}
+        )
+        for cuisine in cuisines:
+            detail = metadata_cuisine.get(cuisine)
+            value = cuisine_detail_value(detail)
+            if value <= 0:
+                continue
+            adjusted = interval_adjusted_detail_value(detail, value, weights)
+            cuisine_match_raw += adjusted
+            facts["attribute_uncertainty_penalty"] += value - adjusted
+            facts["matched_attributes"].append(
+                format_detail_fact(cuisine, detail, value, prefix="cuisine ")
+            )
+    facts["cuisine_match_raw"] = round(cuisine_match_raw, 4)
+    facts["cuisine_match"] = min(cuisine_match_raw, weights.cuisine_match_cap)
+    if cuisine_match_raw > facts["cuisine_match"]:
+        facts["negative_signals"].append(
+            f"cuisine match capped at {weights.cuisine_match_cap:g}"
+        )
+
     for key, wanted in context.items():
         value = float((entity.get("attributes") or {}).get(key) or 0)
         if wanted is True and value > 0:
@@ -255,6 +289,7 @@ def score_entity(
     facts["total"] = round(
         facts["preference"] * weights.preference
         + facts["attribute_match"]
+        + facts["cuisine_match"]
         + facts["context_match"]
         + facts["search_match"]
         + facts["provenance"]
@@ -436,6 +471,44 @@ def interval_adjusted_attribute_value(
     upper = float(interval.get("upper", value))
     width = max(0.0, min(1.0, upper) - max(0.0, lower))
     return max(0.0, value - (width * weights.attribute_uncertainty_width_penalty))
+
+
+def cuisine_detail_value(detail: Any) -> float:
+    if isinstance(detail, dict):
+        detail = detail.get("value", 0)
+    try:
+        return max(0.0, min(1.0, float(detail or 0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def interval_adjusted_detail_value(
+    detail: Any,
+    value: float,
+    weights: RankingWeights,
+) -> float:
+    interval = detail.get("interval_95") if isinstance(detail, dict) else None
+    if not isinstance(interval, dict):
+        interval = {"lower": value, "upper": value}
+    lower = float(interval.get("lower", value))
+    upper = float(interval.get("upper", value))
+    width = max(0.0, min(1.0, upper) - max(0.0, lower))
+    return max(0.0, value - (width * weights.attribute_uncertainty_width_penalty))
+
+
+def format_detail_fact(
+    key: str,
+    detail: Any,
+    value: float,
+    *,
+    prefix: str = "",
+) -> str:
+    interval = detail.get("interval_95") if isinstance(detail, dict) else None
+    if not isinstance(interval, dict):
+        interval = {"lower": value, "upper": value}
+    lower = float(interval.get("lower", value))
+    upper = float(interval.get("upper", value))
+    return f"{prefix}{key}: {value:.2f} (95% interval {lower:.2f}-{upper:.2f})"
 
 
 def format_attribute_fact(

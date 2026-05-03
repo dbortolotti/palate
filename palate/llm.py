@@ -74,7 +74,7 @@ def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str,
                 "filters": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["min_rating", "recommended_by"],
+                    "required": ["min_rating", "recommended_by", "cuisine"],
                     "properties": {
                         "min_rating": {
                             "type": ["number", "null"],
@@ -82,6 +82,10 @@ def parse_intent(query: str, context: dict[str, Any] | None = None) -> dict[str,
                             "maximum": 10,
                         },
                         "recommended_by": {"type": ["string", "null"]},
+                        "cuisine": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": RESTAURANT_GENRES},
+                        },
                     },
                 },
                 "entity_type": {"type": ["string", "null"], "enum": [*ENTITY_TYPES, None]},
@@ -145,8 +149,9 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "Use a narrow interval when evidence is explicit and a wide interval when weak or absent.",
                 "For movie or series items, extract only explicitly evidenced media metadata.",
                 "For music items, extract only explicitly evidenced music metadata.",
-                "For restaurant items, extract explicitly evidenced cuisine as metadata genre.",
-                "Use canonical genre values exactly as provided by the schema.",
+                "For restaurant items, extract explicitly evidenced cuisine as scored metadata cuisine.",
+                "Use canonical cuisine values exactly as provided by the schema.",
+                "For restaurant cuisine, use 0 when not evidenced and use other only when no listed cuisine category fits at 40% confidence.",
                 "Do not invent external ratings, external IDs, or watched status.",
             ]
         ),
@@ -247,6 +252,14 @@ def filter_intent_attributes(intent: dict[str, Any]) -> dict[str, Any]:
         for key, value in (intent.get("context") or {}).items()
         if key in allowed and value
     }
+    filters = intent.get("filters")
+    if isinstance(filters, dict):
+        cuisine = filters.get("cuisine") or []
+        filters["cuisine"] = [
+            item
+            for item in cuisine
+            if intent.get("entity_type") == "restaurant" and item in RESTAURANT_GENRES
+        ]
     return intent
 
 
@@ -315,11 +328,16 @@ def restaurant_metadata_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["genre"],
+        "required": ["cuisine"],
         "properties": {
-            "genre": {
-                "type": "array",
-                "items": {"type": "string", "enum": RESTAURANT_GENRES},
+            "cuisine": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": RESTAURANT_GENRES,
+                "properties": {
+                    key: attribute_value_schema()
+                    for key in RESTAURANT_GENRES
+                },
             },
         },
     }

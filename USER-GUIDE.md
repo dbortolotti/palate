@@ -121,9 +121,11 @@ funk, hip_hop, jazz, latin, metal, pop, punk, r_and_b, reggae, rock, soul,
 soundtrack, world
 ```
 
-Restaurants can also store cuisine as enum metadata `genre`. Restaurant cuisine
-is not a numeric taste attribute; it is metadata used for recall and text
-matching. Allowed restaurant cuisine genres:
+Restaurants can also store cuisine as scored metadata `cuisine`. Restaurant
+cuisine is not a personal taste attribute; it is a ranked metadata facet used
+for recall, text matching, and restaurant cuisine scoring. Multiple cuisines can
+be present at once with separate 95% intervals. Allowed restaurant cuisine
+values:
 
 ```text
 american, barbecue, british, chinese, eastern_european, french, greek, indian,
@@ -132,7 +134,9 @@ middle_eastern, modern_european, seafood, south_east_asian, spanish, thai,
 vegetarian_vegan, vietnamese, other
 ```
 
-Use `other` when no cuisine category reaches the 40% match threshold.
+Use `other` when no cuisine category reaches the 40% match threshold. Older
+client calls that pass restaurant cuisine as `genre` are still accepted and
+converted to scored `cuisine`.
 
 Your own 1-10 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between
@@ -299,7 +303,8 @@ Best practice:
   from the description.
 - For movies and series, include watched status or watched date when known. If
   you provide your own rating, Palate marks the item as watched.
-- For restaurants, include cuisine as `genre` when known.
+- For restaurants, include cuisine as `cuisine` when known. Use scored entries
+  when available; a list of cuisine names is also accepted.
 - For music, include artist, album, personnel, and genre when known.
 
 The client LLM may create a stable internal ID for the item. If you want to be
@@ -626,7 +631,7 @@ Palate responses usually include:
 - `memory_status`: whether this is something you wanted to try/watch, already
   tried/watched, liked, or disliked. Palate infers "want to try" from an item
   being stored without a rating or tried/watched signal.
-- `metadata`: movie and series metadata, restaurant cuisine genre, music
+- `metadata`: movie and series metadata, restaurant cuisine, music
   artist/album/personnel/genre, and external ratings when stored
 - `negative_signals`: reasons an item was penalized or excluded
 - `unmatched_options`: pasted options that Palate could not match to memory

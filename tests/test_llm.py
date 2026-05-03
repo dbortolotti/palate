@@ -80,7 +80,12 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
         response = {
             "attributes": {key: 0 for key in restaurant_attributes},
             "notes": "",
-            "metadata": {"genre": ["italian"]},
+            "metadata": {
+                "cuisine": {
+                    key: {"value": 0, "interval_95": {"lower": 0, "upper": 0}}
+                    for key in RESTAURANT_GENRES
+                }
+            },
         }
 
         with patch("palate.llm.json_response", return_value=response) as json_response:
@@ -89,12 +94,12 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
         metadata_schema = json_response.call_args.kwargs["schema"]["properties"]["metadata"]
 
         self.assertEqual(result, response)
-        self.assertEqual(metadata_schema["required"], ["genre"])
+        self.assertEqual(metadata_schema["required"], ["cuisine"])
         self.assertEqual(
-            metadata_schema["properties"]["genre"]["items"]["enum"],
+            metadata_schema["properties"]["cuisine"]["required"],
             RESTAURANT_GENRES,
         )
-        self.assertIn("other", metadata_schema["properties"]["genre"]["items"]["enum"])
+        self.assertIn("other", metadata_schema["properties"]["cuisine"]["properties"])
 
     def test_wine_attribute_schema_uses_core_and_flavour_wheel_terms(self) -> None:
         wine_attributes = attribute_keys_for_type("wine")
@@ -135,7 +140,7 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             "intent": "contextual_decision",
             "attributes": ["oak", "suspenseful"],
             "context": context,
-            "filters": {"min_rating": None, "recommended_by": None},
+            "filters": {"min_rating": None, "recommended_by": None, "cuisine": []},
             "entity_type": "movie",
             "search_text": "",
         }
@@ -146,9 +151,14 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
         min_rating_schema = json_response.call_args.kwargs["schema"]["properties"][
             "filters"
         ]["properties"]["min_rating"]
+        cuisine_schema = json_response.call_args.kwargs["schema"]["properties"][
+            "filters"
+        ]["properties"]["cuisine"]
         self.assertEqual(intent["attributes"], ["suspenseful"])
         self.assertEqual(intent["context"], {"suspenseful": True})
+        self.assertEqual(intent["filters"]["cuisine"], [])
         self.assertEqual(min_rating_schema["maximum"], 10)
+        self.assertEqual(cuisine_schema["items"]["enum"], RESTAURANT_GENRES)
 
 
 if __name__ == "__main__":

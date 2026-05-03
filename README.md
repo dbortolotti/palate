@@ -27,8 +27,10 @@ and Rotten Tomatoes critic ratings. External ratings are stored as reference
 metadata only; the personal 1-10 `rating` signal remains the taste score.
 OMDb also fills country list, language, runtime, and series season count when available.
 Music memories can store artist, album, personnel, and genre metadata.
-Restaurant memories can store cuisine as enum metadata `genre`, with `other`
-used when no cuisine category reaches the 40% match threshold.
+Restaurant memories can store cuisine as scored metadata `cuisine`, with
+`other` used when no cuisine category reaches the 40% match threshold. Cuisine
+can be multi-label, so a restaurant can be both `italian` and
+`vegetarian_vegan` with separate confidence intervals.
 
 ## Setup
 
@@ -116,7 +118,7 @@ parsed intent, so the harness does not call the LLM.
     "intent": {
       "attributes": ["oak"],
       "context": {},
-      "filters": {"min_rating": null, "recommended_by": null},
+      "filters": {"min_rating": null, "recommended_by": null, "cuisine": []},
       "entity_type": "wine",
       "search_text": ""
     },

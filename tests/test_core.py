@@ -449,7 +449,59 @@ class CoreBehaviorTest(unittest.TestCase):
         }
 
         self.assertEqual(score_text_match(entity, "mexican dinner"), 0.5)
-        self.assertEqual(score_text_match(entity, "other"), 1.0)
+        self.assertEqual(score_text_match(entity, "other"), 0.0)
+
+    def test_restaurant_cuisine_filters_contribute_to_ranking(self) -> None:
+        italian_vegan = {
+            "id": "restaurant_italian_vegan",
+            "type": "restaurant",
+            "canonical_name": "Casa Verde",
+            "metadata": {
+                "cuisine": {
+                    "italian": {
+                        "value": 0.9,
+                        "interval_95": {"lower": 0.75, "upper": 0.98},
+                    },
+                    "vegetarian_vegan": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.45, "upper": 0.85},
+                    },
+                }
+            },
+            "attributes": {},
+            "signals": [],
+        }
+        mexican = {
+            "id": "restaurant_mexican",
+            "type": "restaurant",
+            "canonical_name": "Casa Roja",
+            "metadata": {
+                "cuisine": {
+                    "mexican": {
+                        "value": 1.0,
+                        "interval_95": {"lower": 1.0, "upper": 1.0},
+                    }
+                }
+            },
+            "attributes": {},
+            "signals": [],
+        }
+
+        ranked = rank_candidates(
+            [mexican, italian_vegan],
+            base_intent(
+                entity_type="restaurant",
+                filters={
+                    "min_rating": None,
+                    "recommended_by": None,
+                    "cuisine": ["italian", "vegetarian_vegan"],
+                },
+            ),
+        )
+
+        self.assertEqual(ranked[0]["entity"]["id"], "restaurant_italian_vegan")
+        self.assertGreater(ranked[0]["facts"]["cuisine_match"], 0)
+        self.assertIn("cuisine italian", ranked[0]["facts"]["matched_attributes"][0])
 
     def test_dislike_signal_penalizes_but_does_not_hide_item(self) -> None:
         self.store.add_signal("wine_alex", "dislike", "too heavy")

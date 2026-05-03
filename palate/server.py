@@ -25,6 +25,7 @@ from .media import (
     merge_restaurant_metadata,
     normalize_media_metadata,
     normalize_music_metadata,
+    normalize_restaurant_genres,
     normalize_restaurant_metadata,
     set_media_field,
     set_music_field,
@@ -362,6 +363,7 @@ def palate_remember(
     country: list[str] | None = None,
     language: list[str] | None = None,
     genre: list[str] | None = None,
+    cuisine: dict[str, Any] | list[str] | None = None,
     runtime: int | None = None,
     seasons: int | None = None,
     watched: bool | None = None,
@@ -389,6 +391,7 @@ def palate_remember(
         country=country,
         language=language,
         genre=genre,
+        cuisine=cuisine,
         runtime=runtime,
         seasons=seasons,
         watched=watched,
@@ -435,6 +438,7 @@ def palate_lookup(
     country: list[str] | None = None,
     language: list[str] | None = None,
     genre: list[str] | None = None,
+    cuisine: dict[str, Any] | list[str] | None = None,
     runtime: int | None = None,
     seasons: int | None = None,
     watched: bool | None = None,
@@ -468,6 +472,7 @@ def palate_lookup(
         country=country,
         language=language,
         genre=genre,
+        cuisine=cuisine,
         runtime=runtime,
         seasons=seasons,
         watched=watched,
@@ -506,6 +511,7 @@ def palate_describe_item(
     country: list[str] | None = None,
     language: list[str] | None = None,
     genre: list[str] | None = None,
+    cuisine: dict[str, Any] | list[str] | None = None,
     runtime: int | None = None,
     seasons: int | None = None,
     imdb_id: str | None = None,
@@ -575,6 +581,7 @@ def palate_describe_item(
         country=country,
         language=language,
         genre=genre,
+        cuisine=cuisine,
         runtime=runtime,
         seasons=seasons,
         watched=None,
@@ -629,6 +636,7 @@ def compute_memory_payload(
     country: list[str] | None,
     language: list[str] | None,
     genre: list[str] | None,
+    cuisine: dict[str, Any] | list[str] | None,
     runtime: int | None,
     seasons: int | None,
     watched: bool | None,
@@ -689,6 +697,7 @@ def compute_memory_payload(
         country=country,
         language=language,
         genre=genre,
+        cuisine=cuisine,
         runtime=runtime,
         seasons=seasons,
         watched=watched,
@@ -768,6 +777,11 @@ def normalize_supplied_intent(intent: dict[str, Any]) -> dict[str, Any]:
         "filters": {
             "min_rating": min_rating,
             "recommended_by": filters.get("recommended_by"),
+            "cuisine": (
+                normalize_restaurant_genres(filters.get("cuisine", []))
+                if entity_type == "restaurant"
+                else []
+            ),
         },
         "entity_type": entity_type,
         "search_text": str(intent.get("search_text") or ""),
@@ -972,7 +986,7 @@ def remember_metadata_arguments(entity_type: str, metadata: dict[str, Any]) -> d
             "genre": metadata.get("genre"),
         }
     if is_restaurant_type(entity_type):
-        return {"genre": metadata.get("genre")}
+        return {"cuisine": metadata.get("cuisine")}
     if is_media_type(entity_type):
         return {
             "synopsis": metadata.get("synopsis"),
@@ -1055,6 +1069,7 @@ def prepare_entity_metadata(
     country: list[str] | None,
     language: list[str] | None,
     genre: list[str] | None,
+    cuisine: dict[str, Any] | list[str] | None,
     runtime: int | None,
     seasons: int | None,
     watched: bool | None,
@@ -1074,6 +1089,7 @@ def prepare_entity_metadata(
         return prepare_restaurant_metadata(
             enrichment_metadata=enrichment_metadata,
             genre=genre,
+            cuisine=cuisine,
         )
 
     return prepare_media_metadata(
@@ -1162,13 +1178,17 @@ def prepare_restaurant_metadata(
     *,
     enrichment_metadata: dict[str, Any],
     genre: list[str] | None,
+    cuisine: dict[str, Any] | list[str] | None,
 ) -> tuple[dict[str, Any], list[str]]:
     metadata = normalize_restaurant_metadata(enrichment_metadata)
     manual_paths: set[tuple[str, ...]] = set()
 
-    if genre is not None:
+    if cuisine is not None:
+        metadata = set_restaurant_field(metadata, ("cuisine",), cuisine)
+        manual_paths.add(("cuisine",))
+    elif genre is not None:
         metadata = set_restaurant_field(metadata, ("genre",), genre)
-        manual_paths.add(("genre",))
+        manual_paths.add(("cuisine",))
 
     return merge_restaurant_metadata(metadata, {}, protected_paths=manual_paths), []
 

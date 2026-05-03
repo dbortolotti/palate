@@ -188,7 +188,7 @@ MUSIC_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("genre",),
 )
 
-RESTAURANT_METADATA_PATHS: tuple[tuple[str, ...], ...] = (("genre",),)
+RESTAURANT_METADATA_PATHS: tuple[tuple[str, ...], ...] = (("cuisine",),)
 
 
 def is_media_type(entity_type: str | None) -> bool:
@@ -234,7 +234,7 @@ def empty_music_metadata() -> dict[str, Any]:
 
 
 def empty_restaurant_metadata() -> dict[str, Any]:
-    return {"genre": []}
+    return {"cuisine": {}}
 
 
 def normalize_media_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
@@ -270,9 +270,14 @@ def normalize_restaurant_metadata(metadata: dict[str, Any] | None) -> dict[str, 
     if not isinstance(metadata, dict):
         return result
 
+    raw = metadata.get("cuisine")
+    if raw is not None:
+        result["cuisine"] = normalize_restaurant_cuisine(raw)
+        return result
+
     raw = metadata.get("genre")
     if raw is not None:
-        result["genre"] = normalize_restaurant_genres(raw)
+        result["cuisine"] = normalize_restaurant_cuisine(raw)
 
     return result
 
@@ -303,8 +308,8 @@ def set_restaurant_field(
     value: Any,
 ) -> dict[str, Any]:
     result = normalize_restaurant_metadata(metadata)
-    if path == ("genre",):
-        set_path(result, path, normalize_restaurant_genres(value))
+    if path in {("cuisine",), ("genre",)}:
+        set_path(result, ("cuisine",), normalize_restaurant_cuisine(value))
     return result
 
 
@@ -457,7 +462,7 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
 
     parts.extend(music["personnel"])
     parts.extend(music["genre"])
-    parts.extend(restaurant["genre"])
+    parts.extend(restaurant_cuisine_search_terms(restaurant))
 
     return " ".join(parts)
 
@@ -564,6 +569,97 @@ def normalize_restaurant_genres(value: Any) -> list[str]:
         if canonical and canonical not in result:
             result.append(canonical)
     return result
+
+
+def normalize_restaurant_cuisine(value: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+
+    if isinstance(value, dict):
+        if isinstance(value.get("cuisine"), dict) or value.get("genre") is not None:
+            value = value.get("cuisine", value.get("genre"))
+        if isinstance(value, dict):
+            for raw_key, raw_value in value.items():
+                cuisine = restaurant_genre_match(raw_key)
+                if not cuisine:
+                    continue
+                detail = normalize_cuisine_detail(raw_value)
+                if detail["value"] <= 0:
+                    continue
+                existing = result.get(cuisine)
+                if existing is None or detail["value"] > existing["value"]:
+                    result[cuisine] = detail
+            return prune_other_cuisine(result)
+
+    for cuisine in normalize_restaurant_genres(value):
+        result[cuisine] = {
+            "value": 1.0,
+            "interval_95": {"lower": 1.0, "upper": 1.0},
+        }
+
+    return prune_other_cuisine(result)
+
+
+def normalize_cuisine_detail(value: Any) -> dict[str, Any]:
+    point = cuisine_point_value(value)
+    if isinstance(value, dict):
+        interval = value.get("interval_95")
+        if interval is None and ("lower_95" in value or "upper_95" in value):
+            interval = {"lower": value.get("lower_95"), "upper": value.get("upper_95")}
+    else:
+        interval = None
+    return {
+        "value": point,
+        "interval_95": normalize_cuisine_interval(point, interval),
+    }
+
+
+def cuisine_point_value(value: Any) -> float:
+    if isinstance(value, dict):
+        value = value.get("value", 0)
+    try:
+        return clamp_cuisine01(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def normalize_cuisine_interval(
+    value: float,
+    interval: dict[str, Any] | None,
+) -> dict[str, float]:
+    if not isinstance(interval, dict):
+        return {"lower": value, "upper": value}
+    try:
+        lower = clamp_cuisine01(interval.get("lower", interval.get("lower_95", value)))
+        upper = clamp_cuisine01(interval.get("upper", interval.get("upper_95", value)))
+    except (TypeError, ValueError):
+        return {"lower": value, "upper": value}
+    if lower > upper:
+        lower, upper = upper, lower
+    return {"lower": min(lower, value), "upper": max(upper, value)}
+
+
+def clamp_cuisine01(value: Any) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def prune_other_cuisine(cuisine: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    if len(cuisine) > 1 and "other" in cuisine:
+        cuisine = dict(cuisine)
+        cuisine.pop("other", None)
+    return cuisine
+
+
+def restaurant_cuisine_search_terms(
+    metadata: dict[str, Any] | None,
+    *,
+    threshold: float = 0.4,
+) -> list[str]:
+    cuisine = normalize_restaurant_metadata(metadata).get("cuisine") or {}
+    return [
+        key
+        for key, detail in cuisine.items()
+        if cuisine_point_value(detail) >= threshold
+    ]
 
 
 def restaurant_genre_match(value: Any, *, threshold: float = 0.4) -> str:
