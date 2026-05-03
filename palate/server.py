@@ -367,6 +367,126 @@ def palate_lookup(
     }
 
 
+@mcp.tool()
+def palate_describe_item(
+    item_text: str,
+    entity_type: EntityType,
+    canonical_name: str | None = None,
+    attributes: dict[str, Any] | None = None,
+    attribute_intervals_95: dict[str, dict[str, float]] | None = None,
+    notes: str | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+    personnel: list[str] | None = None,
+    synopsis: str | None = None,
+    main_actors: list[str] | None = None,
+    director: str | None = None,
+    country: list[str] | None = None,
+    language: list[str] | None = None,
+    genre: list[str] | None = None,
+    runtime: int | None = None,
+    seasons: int | None = None,
+    imdb_id: str | None = None,
+    fetch_external_ratings: bool = True,
+) -> dict[str, Any]:
+    """Describe an item without storing; enrich only when no confident memory exists."""
+    if entity_type not in ENTITY_TYPES:
+        raise ValueError(f"entity_type must be one of: {', '.join(ENTITY_TYPES)}")
+    if not isinstance(item_text, str) or not item_text.strip():
+        raise ValueError("item_text is required and must not be blank.")
+
+    description = item_text.strip()
+    name = (canonical_name or description).strip()
+    if not name:
+        raise ValueError("canonical_name must not be blank when provided.")
+
+    existing = match_existing_memory(name, entity_type)
+    if existing["record"] is not None:
+        return {
+            "stored": False,
+            "source": "memory",
+            "found_existing": True,
+            "record": existing["record"],
+            "match": existing["match"],
+            "needs_confirmation": [],
+            "enriched": None,
+            "suggested_remember": None,
+            "ask_user": None,
+            "server_llm_used": {"enrichment": False},
+            "warnings": [],
+        }
+
+    if existing["needs_confirmation"]:
+        return {
+            "stored": False,
+            "source": "memory_confirmation_required",
+            "found_existing": False,
+            "record": None,
+            "match": None,
+            "needs_confirmation": existing["needs_confirmation"],
+            "enriched": None,
+            "suggested_remember": None,
+            "ask_user": (
+                "I found a possible existing Palate memory, but the name match is "
+                "below 85%. Confirm the match before using or updating it."
+            ),
+            "server_llm_used": {"enrichment": False},
+            "warnings": [],
+        }
+
+    memory = compute_memory_payload(
+        type=entity_type,
+        canonical_name=name,
+        description=description,
+        attributes=attributes,
+        attribute_intervals_95=attribute_intervals_95,
+        rating=None,
+        tried=None,
+        recommended_by=None,
+        notes=notes,
+        artist=artist,
+        album=album,
+        personnel=personnel,
+        synopsis=synopsis,
+        main_actors=main_actors,
+        director=director,
+        country=country,
+        language=language,
+        genre=genre,
+        runtime=runtime,
+        seasons=seasons,
+        watched=None,
+        watched_at=None,
+        imdb_id=imdb_id,
+        fetch_external_ratings=fetch_external_ratings,
+    )
+    suggested_arguments = remember_arguments_from_memory(
+        suggested_id=suggest_entity_id(entity_type, name),
+        memory=memory,
+    )
+
+    return {
+        "stored": False,
+        "source": "enrichment",
+        "found_existing": False,
+        "record": None,
+        "match": None,
+        "needs_confirmation": [],
+        "enriched": memory["record"],
+        "normalized_attributes": memory["normalized_attributes"],
+        "normalized_attribute_intervals_95": memory[
+            "normalized_attribute_intervals_95"
+        ],
+        "suggested_remember": {
+            "tool": "palate_remember",
+            "arguments": suggested_arguments,
+        },
+        "ask_user": "No matching Palate memory was found. Ask whether to remember this item.",
+        "server_llm_used": memory["server_llm_used"],
+        "warnings": memory["warnings"],
+    }
+
+
 def compute_memory_payload(
     *,
     type: EntityType,
@@ -669,6 +789,90 @@ def palate_enrich_item(item_text: str, entity_type: EntityType) -> dict[str, Any
     if entity_type not in ENTITY_TYPES:
         raise ValueError(f"entity_type must be one of: {', '.join(ENTITY_TYPES)}")
     return normalize_enrichment(item_text, entity_type)
+
+
+def match_existing_memory(name: str, entity_type: str) -> dict[str, Any]:
+    matches = store.match_entities_by_names([name])
+    typed_matches = [
+        match
+        for match in matches.get("matches", [])
+        if match.get("matched_id")
+        and entity_by_id(match["matched_id"], entity_type) is not None
+    ]
+    if not typed_matches:
+        return {"record": None, "match": None, "needs_confirmation": []}
+
+    best = max(typed_matches, key=lambda match: float(match.get("confidence") or 0))
+    record = entity_by_id(best["matched_id"], entity_type)
+    if record is None:
+        return {"record": None, "match": None, "needs_confirmation": []}
+    if best.get("needs_confirmation"):
+        return {"record": None, "match": None, "needs_confirmation": [best]}
+    return {"record": record, "match": best, "needs_confirmation": []}
+
+
+def entity_by_id(entity_id: str, entity_type: str) -> dict[str, Any] | None:
+    for entity in store.list_entities():
+        if entity.get("id") == entity_id and entity.get("type") == entity_type:
+            return entity
+    return None
+
+
+def remember_arguments_from_memory(
+    *,
+    suggested_id: str,
+    memory: dict[str, Any],
+) -> dict[str, Any]:
+    record = memory["record"]
+    arguments = {
+        "id": suggested_id,
+        "type": record["type"],
+        "canonical_name": record["canonical_name"],
+        "description": record["source_text"],
+        "attributes": memory["normalized_attributes"],
+        "attribute_intervals_95": memory["normalized_attribute_intervals_95"],
+        "notes": record.get("notes"),
+        "fetch_external_ratings": False,
+    }
+    arguments.update(remember_metadata_arguments(record["type"], record.get("metadata") or {}))
+    return {key: value for key, value in arguments.items() if value not in (None, [], {})}
+
+
+def remember_metadata_arguments(entity_type: str, metadata: dict[str, Any]) -> dict[str, Any]:
+    if is_music_type(entity_type):
+        return {
+            "artist": metadata.get("artist"),
+            "album": metadata.get("album"),
+            "personnel": metadata.get("personnel"),
+            "genre": metadata.get("genre"),
+        }
+    if is_media_type(entity_type):
+        return {
+            "synopsis": metadata.get("synopsis"),
+            "main_actors": metadata.get("main_actors"),
+            "director": metadata.get("director"),
+            "country": metadata.get("country"),
+            "language": metadata.get("language"),
+            "genre": metadata.get("genre"),
+            "runtime": metadata.get("runtime"),
+            "seasons": metadata.get("seasons"),
+            "imdb_id": (metadata.get("external_ids") or {}).get("imdb_id"),
+            "fetch_external_ratings": False,
+        }
+    return {}
+
+
+def suggest_entity_id(entity_type: str, canonical_name: str) -> str:
+    base = "_".join(
+        part
+        for part in "".join(
+            char.lower() if char.isalnum() else " "
+            for char in canonical_name
+        ).split()
+    )
+    if not base:
+        base = "item"
+    return f"{entity_type}_{base}"
 
 
 @mcp.tool()

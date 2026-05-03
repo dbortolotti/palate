@@ -322,6 +322,37 @@ Best practice:
 - Pass `attributes` and optional `attribute_intervals_95` when you can map them
   confidently; omit them when you want Palate's server LLM to enrich the item.
 
+### Describe Or Enrich Before Remembering
+
+Use this for questions such as "tell me about Gaja 2016 Barbaresco" when the
+user has not explicitly asked to save anything. Call `palate_describe_item`.
+It is read-only: it first checks existing Palate memory, then enriches the item
+only if no confident memory exists.
+
+Good prompts:
+
+```text
+Use Palate to tell me about Gaja 2016 Barbaresco.
+```
+
+```text
+Use Palate to describe this movie, but don't save it yet:
+Heat, 1995, Michael Mann.
+```
+
+Best practice:
+
+- Pass a clean `canonical_name` when the user text contains conversational
+  framing; otherwise `item_text` can be the item name and description.
+- Pass `entity_type` from client understanding when obvious. For the example
+  above, use `wine`.
+- If Palate returns `source="memory"`, answer from the existing record.
+- If Palate returns `source="memory_confirmation_required"`, ask the user to
+  confirm the possible match before using or updating it.
+- If Palate returns `source="enrichment"`, answer from `enriched`, then ask
+  whether the user wants to remember it. Use the returned `suggested_remember`
+  payload only if the user says yes.
+
 ### Recall Something Fuzzy
 
 Use this when you half-remember something already saved.

@@ -360,6 +360,89 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIn("do_not_store=true", str(caught.exception))
         self.assertIn("explicitly says not to store", str(caught.exception))
 
+    def test_describe_item_returns_existing_memory_without_enriching(self) -> None:
+        before_ids = {entity["id"] for entity in self.store.list_entities()}
+
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not enrich")):
+            result = server.palate_describe_item(
+                item_text="Mike's Cabernet",
+                entity_type="wine",
+            )
+
+        after_ids = {entity["id"] for entity in self.store.list_entities()}
+        self.assertEqual(after_ids, before_ids)
+        self.assertFalse(result["stored"])
+        self.assertTrue(result["found_existing"])
+        self.assertEqual(result["source"], "memory")
+        self.assertEqual(result["record"]["id"], "wine_mike")
+        self.assertEqual(result["match"]["confidence"], 1.0)
+        self.assertIsNone(result["suggested_remember"])
+        self.assertEqual(result["server_llm_used"], {"enrichment": False})
+
+    def test_describe_item_surfaces_uncertain_match_without_enriching(self) -> None:
+        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not enrich")):
+            result = server.palate_describe_item(
+                item_text="Mike Syrah",
+                entity_type="wine",
+            )
+
+        self.assertFalse(result["found_existing"])
+        self.assertEqual(result["source"], "memory_confirmation_required")
+        self.assertEqual(result["needs_confirmation"][0]["matched_id"], "wine_mike")
+        self.assertLess(result["needs_confirmation"][0]["confidence"], 0.85)
+        self.assertIsNone(result["enriched"])
+        self.assertIn("Confirm", result["ask_user"])
+
+    def test_describe_item_enriches_missing_item_without_storing(self) -> None:
+        before_ids = {entity["id"] for entity in self.store.list_entities()}
+
+        with patch.object(
+            server,
+            "normalize_enrichment",
+            return_value={
+                "attributes": {
+                    "body": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.4, "upper": 0.9},
+                    },
+                    "premium": {
+                        "value": 0.9,
+                        "interval_95": {"lower": 0.6, "upper": 1.0},
+                    },
+                },
+                "notes": "structured Barbaresco profile",
+                "metadata": {},
+            },
+        ) as enrich:
+            result = server.palate_describe_item(
+                item_text="Gaja 2016 Barbaresco",
+                entity_type="wine",
+            )
+
+        after_ids = {entity["id"] for entity in self.store.list_entities()}
+        self.assertEqual(after_ids, before_ids)
+        enrich.assert_called_once_with("Gaja 2016 Barbaresco", "wine")
+        self.assertFalse(result["stored"])
+        self.assertFalse(result["found_existing"])
+        self.assertEqual(result["source"], "enrichment")
+        self.assertEqual(result["enriched"]["canonical_name"], "Gaja 2016 Barbaresco")
+        self.assertEqual(result["normalized_attributes"]["premium"], 0.9)
+        self.assertEqual(
+            result["normalized_attribute_intervals_95"]["body"],
+            {"lower": 0.4, "upper": 0.9},
+        )
+        self.assertEqual(result["suggested_remember"]["tool"], "palate_remember")
+        self.assertEqual(
+            result["suggested_remember"]["arguments"]["id"],
+            "wine_gaja_2016_barbaresco",
+        )
+        self.assertEqual(
+            result["suggested_remember"]["arguments"]["attributes"]["premium"],
+            0.9,
+        )
+        self.assertIn("remember", result["ask_user"])
+        self.assertEqual(result["server_llm_used"], {"enrichment": True})
+
     def test_lookup_mcp_schema_requires_do_not_store(self) -> None:
         tools = asyncio.run(server.mcp.list_tools())
         lookup_tool = next(tool for tool in tools if tool.name == "palate_lookup")
