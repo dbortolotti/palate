@@ -16,7 +16,7 @@ from .schema import (
 )
 
 
-MODEL = os.getenv("PALATE_MODEL", "gpt-4o")
+MODEL = os.getenv("PALATE_MODEL", "gpt-5.4-mini")
 
 
 def client() -> OpenAI:

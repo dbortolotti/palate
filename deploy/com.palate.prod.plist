@@ -35,7 +35,7 @@
     <key>PALATE_DB_PATH</key>
     <string>/Volumes/xpg_usb4/prod/palate/shared/data/palate.sqlite</string>
     <key>PALATE_MODEL</key>
-    <string>gpt-4o</string>
+    <string>gpt-5.4-mini</string>
     <key>PALATE_BACKUP_ENABLED</key>
     <string>1</string>
     <key>PALATE_BACKUP_DIR</key>

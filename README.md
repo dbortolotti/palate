@@ -221,7 +221,7 @@ only manages files/folders created by this app or explicitly selected for it.
         "OPENAI_API_KEY": "your-openai-api-key",
         "OMDB_API_KEY": "your-omdb-api-key",
         "PALATE_DB_PATH": "./data/palate.sqlite",
-        "PALATE_MODEL": "gpt-4o"
+        "PALATE_MODEL": "gpt-5.4-mini"
       }
     }
   }
