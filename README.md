@@ -31,10 +31,16 @@ Restaurant memories can store cuisine as scored metadata `cuisine`, with
 `other` used when no cuisine category reaches the 40% match threshold. Cuisine
 can be multi-label, so a restaurant can be both `italian` and
 `vegetarian_vegan` with separate confidence intervals.
+Restaurant memories can also store source-qualified Michelin Guide metadata
+under `metadata.michelin`, including status, star count, Green Star flag, and
+the official Guide URL when available.
+Google Maps/Places rating data can be stored under `metadata.google`, including
+the Google rating, rating count, source URL, and checked timestamp.
 Unknown restaurant enrichment uses Responses web search to ground cuisine,
-menu, price tier, ambiance, and setting before scoring attributes. Lookup and
-describe responses return any consulted web `sources`; stored memory keeps the
-normalized Palate record rather than source URLs.
+menu, price tier, ambiance, setting, official Michelin Guide status, and direct
+Google rating data before scoring attributes. Describe responses return any
+consulted web `sources`; stored memory keeps the normalized Palate record
+rather than source URLs.
 
 ## Setup
 
@@ -72,7 +78,6 @@ python3 -m unittest discover -s tests
 - `palate_query`: rank memory from a free-form taste query; pass parsed intent from the client to avoid server LLM parsing
 - `palate_evaluate_options`: evaluate a pasted option set; pass extracted entities from the client to avoid server LLM extraction
 - `palate_remember`: store a taste memory with required description text, optional watched/tried status, personal rating, client-supplied or server-derived attributes, and optional OMDb movie or series ratings
-- `palate_lookup`: compute the Palate record, attributes, metadata, and signals without storing; use only when the user explicitly says not to store
 - `palate_describe_item`: read-only item description; returns existing memory when found, otherwise fills missing fields/enriches the item and returns a suggested `palate_remember` payload without storing
 - `palate_recall`: recall matching explicit memory
 - `palate_delete_record`: delete one explicit memory by exact ID or 99%+ fuzzy name match; below 99%, returns candidates for user confirmation

@@ -6,7 +6,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from .media import MEDIA_GENRES, MUSIC_GENRES, RESTAURANT_GENRES
+from .media import MEDIA_GENRES, MICHELIN_STATUSES, MUSIC_GENRES, RESTAURANT_GENRES
 from .schema import (
     ATTRIBUTE_KEYS,
     ATTRIBUTE_KEYS_BY_TYPE,
@@ -152,6 +152,10 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
                 "For restaurant items, extract explicitly evidenced cuisine as scored metadata cuisine.",
                 "Use canonical cuisine values exactly as provided by the schema.",
                 "For restaurant cuisine, use 0 when not evidenced and use other only when no listed cuisine category fits at 40% confidence.",
+                "For restaurant Michelin metadata, use only explicitly evidenced official Michelin Guide information.",
+                "Set Michelin status to unknown when an official Michelin source is not provided.",
+                "For restaurant Google metadata, use only directly evidenced Google Maps, Google Business Profile, or Google Places data.",
+                "Set Google rating and rating_count to null when no direct Google source is provided.",
                 "Do not invent external ratings, external IDs, or watched status.",
             ]
         ),
@@ -163,6 +167,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
             "allowed_media_genres": MEDIA_GENRES,
             "allowed_music_genres": MUSIC_GENRES,
             "allowed_restaurant_genres": RESTAURANT_GENRES,
+            "allowed_michelin_statuses": MICHELIN_STATUSES,
         },
         schema={
             "type": "object",
@@ -210,15 +215,23 @@ def normalize_restaurant_enrichment(item_text: str) -> dict[str, Any]:
                     [
                         "Research the restaurant using current web sources, then normalize it into Palate's fixed restaurant attribute schema.",
                         "Use the web for venue facts such as cuisine, menu, neighborhood, price tier, ambiance, and setting.",
+                        "Use official guide.michelin.com pages for Michelin status.",
+                        "Use Google Maps, Google Business Profile, or Google Places data for Google rating and rating_count.",
                         "Never invent new attribute keys.",
-                        "Each attribute must include value and interval_95.",
+                        "Each attribute must include value, interval_95, and interval_1sigma.",
                         "Each value must be in [0, 1]. Use 0 when not evidenced.",
-                        "Each interval_95 is the 95% interval for the true attribute value.",
-                        "Each interval_95 must include the value and stay within [0, 1].",
-                        "Use a narrow interval when web evidence is explicit and a wide interval when weak or absent.",
+                        "Each interval is the corresponding uncertainty interval for the true attribute value.",
+                        "Each interval must include the value and stay within [0, 1].",
+                        "The 95% interval must be at least as wide as the 1-sigma interval.",
+                        "Compute the 1-sigma interval directly from the evidence and uncertainty; do not derive it from the 95% interval by normal approximation.",
+                        "Use narrow intervals when web evidence is explicit and wide intervals when weak or absent.",
                         "Extract explicitly evidenced cuisine as scored metadata cuisine.",
                         "Use canonical cuisine values exactly as provided by the schema.",
                         "For restaurant cuisine, use 0 when not evidenced and use other only when no listed cuisine category fits at 40% confidence.",
+                        "Extract Michelin status only from official guide.michelin.com sources.",
+                        "Set Michelin status to unknown when no official Michelin source is found; do not infer not_listed from generic web absence.",
+                        "Extract Google rating and rating_count only from direct Google sources; do not copy third-party review-site ratings.",
+                        "Set Google rating and rating_count to null when no direct Google source is found.",
                         "Mention the web facts that drove the scores in notes, without copying long source text.",
                     ]
                 ),
@@ -231,6 +244,7 @@ def normalize_restaurant_enrichment(item_text: str) -> dict[str, Any]:
                         "entity_type": "restaurant",
                         "allowed_attributes": allowed_attributes,
                         "allowed_restaurant_genres": RESTAURANT_GENRES,
+                        "allowed_michelin_statuses": MICHELIN_STATUSES,
                     }
                 ),
             },
@@ -250,7 +264,7 @@ def normalize_restaurant_enrichment(item_text: str) -> dict[str, Any]:
                             "additionalProperties": False,
                             "required": allowed_attributes,
                             "properties": {
-                                key: attribute_value_schema()
+                                key: sigma_attribute_value_schema()
                                 for key in allowed_attributes
                             },
                         },
@@ -284,6 +298,35 @@ def attribute_value_schema() -> dict[str, Any]:
                     "upper": {"type": "number", "minimum": 0, "maximum": 1},
                 },
             },
+        },
+    }
+
+
+def sigma_attribute_value_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "value",
+            "interval_95",
+            "interval_1sigma",
+        ],
+        "properties": {
+            "value": {"type": "number", "minimum": 0, "maximum": 1},
+            "interval_95": confidence_interval_schema(),
+            "interval_1sigma": confidence_interval_schema(),
+        },
+    }
+
+
+def confidence_interval_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["lower", "upper"],
+        "properties": {
+            "lower": {"type": "number", "minimum": 0, "maximum": 1},
+            "upper": {"type": "number", "minimum": 0, "maximum": 1},
         },
     }
 
@@ -449,7 +492,7 @@ def restaurant_metadata_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["cuisine"],
+        "required": ["cuisine", "michelin", "google"],
         "properties": {
             "cuisine": {
                 "type": "object",
@@ -460,6 +503,52 @@ def restaurant_metadata_schema() -> dict[str, Any]:
                     for key in RESTAURANT_GENRES
                 },
             },
+            "michelin": michelin_metadata_schema(),
+            "google": google_rating_metadata_schema(),
+        },
+    }
+
+
+def michelin_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "status",
+            "stars",
+            "green_star",
+            "source_url",
+            "source",
+            "checked_at",
+        ],
+        "properties": {
+            "status": {"type": "string", "enum": MICHELIN_STATUSES},
+            "stars": {"type": ["integer", "null"], "minimum": 0, "maximum": 3},
+            "green_star": {"type": "boolean"},
+            "source_url": {"type": ["string", "null"]},
+            "source": {"type": ["string", "null"]},
+            "checked_at": {"type": ["string", "null"]},
+        },
+    }
+
+
+def google_rating_metadata_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "rating",
+            "rating_count",
+            "source_url",
+            "source",
+            "checked_at",
+        ],
+        "properties": {
+            "rating": {"type": ["number", "null"], "minimum": 0, "maximum": 5},
+            "rating_count": {"type": ["integer", "null"], "minimum": 0},
+            "source_url": {"type": ["string", "null"]},
+            "source": {"type": ["string", "null"]},
+            "checked_at": {"type": ["string", "null"]},
         },
     }
 

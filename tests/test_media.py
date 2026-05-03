@@ -3,12 +3,17 @@ from __future__ import annotations
 import unittest
 
 from palate.media import (
+    MICHELIN_STATUSES,
     RESTAURANT_GENRES,
+    normalize_google_rating_metadata,
+    normalize_michelin_status,
     normalize_restaurant_cuisine,
     normalize_restaurant_genres,
     normalize_restaurant_metadata,
     restaurant_cuisine_search_terms,
+    restaurant_google_search_terms,
     restaurant_genre_match,
+    restaurant_michelin_search_terms,
 )
 
 
@@ -75,6 +80,83 @@ class RestaurantCuisineGenreTest(unittest.TestCase):
         self.assertEqual(
             restaurant_cuisine_search_terms({"cuisine": cuisine}),
             ["italian", "vegetarian_vegan"],
+        )
+
+    def test_restaurant_michelin_status_normalizes_distinctions(self) -> None:
+        self.assertIn("one_star", MICHELIN_STATUSES)
+        self.assertEqual(
+            normalize_michelin_status(
+                {
+                    "status": "1 Michelin Star",
+                    "green_star": True,
+                    "url": "https://guide.michelin.com/gb/en/test",
+                    "checked_at": "2026-05-03",
+                }
+            ),
+            {
+                "status": "one_star",
+                "stars": 1,
+                "green_star": True,
+                "source_url": "https://guide.michelin.com/gb/en/test",
+                "source": "guide.michelin.com",
+                "checked_at": "2026-05-03",
+            },
+        )
+
+    def test_restaurant_metadata_preserves_michelin_status_for_search(self) -> None:
+        metadata = normalize_restaurant_metadata(
+            {
+                "cuisine": ["British"],
+                "michelin": {
+                    "status": "Bib Gourmand",
+                    "source_url": "https://guide.michelin.com/gb/en/test",
+                },
+            }
+        )
+
+        self.assertEqual(metadata["michelin"]["status"], "bib_gourmand")
+        self.assertEqual(metadata["michelin"]["stars"], 0)
+        self.assertEqual(
+            restaurant_michelin_search_terms(metadata),
+            ["michelin", "bib gourmand"],
+        )
+
+    def test_restaurant_google_rating_normalizes_review_count(self) -> None:
+        self.assertEqual(
+            normalize_google_rating_metadata(
+                {
+                    "rating": "4.64",
+                    "userRatingCount": "1,234",
+                    "url": "https://www.google.com/maps/place/test",
+                    "checked_at": "2026-05-03",
+                }
+            ),
+            {
+                "rating": 4.6,
+                "rating_count": 1234,
+                "source_url": "https://www.google.com/maps/place/test",
+                "source": "google",
+                "checked_at": "2026-05-03",
+            },
+        )
+
+    def test_restaurant_metadata_preserves_google_rating_for_search(self) -> None:
+        metadata = normalize_restaurant_metadata(
+            {
+                "cuisine": ["Italian"],
+                "google": {
+                    "rating": 4.7,
+                    "rating_count": 321,
+                    "source_url": "https://maps.app.goo.gl/example",
+                },
+            }
+        )
+
+        self.assertEqual(metadata["google"]["rating"], 4.7)
+        self.assertEqual(metadata["google"]["rating_count"], 321)
+        self.assertEqual(
+            restaurant_google_search_terms(metadata),
+            ["google", "google rating 4.7", "321 google ratings"],
         )
 
 

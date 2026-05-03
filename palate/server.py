@@ -45,6 +45,7 @@ from .storage import (
     attribute_value,
     clamp01,
     name_match_confidence,
+    normalize_name_for_match,
     open_store,
 )
 
@@ -252,7 +253,7 @@ def palate_query(
     intent: dict[str, Any] | None = None,
     extracted_entities: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Rank matching memory. Pass intent/entities from the client to avoid server LLM calls."""
+    """Recommend or rank saved Palate memories for an open-ended taste query."""
     context = context or {}
     intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
     extraction, extracted_with_llm = resolve_extraction(
@@ -310,7 +311,7 @@ def palate_evaluate_options(
     intent: dict[str, Any] | None = None,
     extracted_entities: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Rank known matching options. Pass intent/entities from the client to avoid server LLM calls."""
+    """Rank only the pasted/provided options against saved Palate memories."""
     context = context or {}
     intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
     extraction, extracted_with_llm = resolve_extraction(
@@ -376,6 +377,12 @@ def palate_remember(
     language: list[str] | None = None,
     genre: list[str] | None = None,
     cuisine: dict[str, Any] | list[str] | None = None,
+    michelin_status: str | None = None,
+    michelin_url: str | None = None,
+    michelin_green_star: bool | None = None,
+    google_rating: float | None = None,
+    google_rating_count: int | None = None,
+    google_url: str | None = None,
     runtime: int | None = None,
     seasons: int | None = None,
     watched: bool | None = None,
@@ -383,7 +390,7 @@ def palate_remember(
     imdb_id: str | None = None,
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
-    """Store memory; ask one 1-10 rating question, accepting "no" if not tried/watched."""
+    """Store a taste memory only when the user asks to remember/save it."""
     memory = compute_memory_payload(
         type=type,
         canonical_name=canonical_name,
@@ -404,6 +411,12 @@ def palate_remember(
         language=language,
         genre=genre,
         cuisine=cuisine,
+        michelin_status=michelin_status,
+        michelin_url=michelin_url,
+        michelin_green_star=michelin_green_star,
+        google_rating=google_rating,
+        google_rating_count=google_rating_count,
+        google_url=google_url,
         runtime=runtime,
         seasons=seasons,
         watched=watched,
@@ -422,85 +435,10 @@ def palate_remember(
         "normalized_attribute_intervals_95": memory[
             "normalized_attribute_intervals_95"
         ],
-        "metadata": memory["record"]["metadata"],
-        "sources": memory["sources"],
-        "server_llm_used": memory["server_llm_used"],
-        "warnings": memory["warnings"],
-    }
-
-
-@mcp.tool()
-@logged_tool
-def palate_lookup(
-    type: EntityType,
-    canonical_name: str,
-    description: str,
-    do_not_store: bool,
-    attributes: dict[str, Any] | None = None,
-    attribute_intervals_95: dict[str, dict[str, float]] | None = None,
-    rating: float | None = None,
-    tried: bool | None = None,
-    recommended_by: str | None = None,
-    notes: str | None = None,
-    artist: str | None = None,
-    album: str | None = None,
-    personnel: list[str] | None = None,
-    synopsis: str | None = None,
-    main_actors: list[str] | None = None,
-    director: str | None = None,
-    country: list[str] | None = None,
-    language: list[str] | None = None,
-    genre: list[str] | None = None,
-    cuisine: dict[str, Any] | list[str] | None = None,
-    runtime: int | None = None,
-    seasons: int | None = None,
-    watched: bool | None = None,
-    watched_at: str | None = None,
-    imdb_id: str | None = None,
-    fetch_external_ratings: bool = True,
-) -> dict[str, Any]:
-    """Compute a Palate memory preview without storing; call only when the user explicitly says not to store."""
-    if do_not_store is not True:
-        raise ValueError(
-            "palate_lookup requires do_not_store=true and should only be used "
-            "when the user explicitly says not to store the result."
-        )
-
-    memory = compute_memory_payload(
-        type=type,
-        canonical_name=canonical_name,
-        description=description,
-        attributes=attributes,
-        attribute_intervals_95=attribute_intervals_95,
-        rating=rating,
-        tried=tried,
-        recommended_by=recommended_by,
-        notes=notes,
-        artist=artist,
-        album=album,
-        personnel=personnel,
-        synopsis=synopsis,
-        main_actors=main_actors,
-        director=director,
-        country=country,
-        language=language,
-        genre=genre,
-        cuisine=cuisine,
-        runtime=runtime,
-        seasons=seasons,
-        watched=watched,
-        watched_at=watched_at,
-        imdb_id=imdb_id,
-        fetch_external_ratings=fetch_external_ratings,
-    )
-
-    return {
-        "stored": False,
-        "record": memory["record"],
-        "normalized_attributes": memory["normalized_attributes"],
-        "normalized_attribute_intervals_95": memory[
-            "normalized_attribute_intervals_95"
+        "normalized_attribute_intervals_1sigma": memory[
+            "normalized_attribute_intervals_1sigma"
         ],
+        "metadata": memory["record"]["metadata"],
         "sources": memory["sources"],
         "server_llm_used": memory["server_llm_used"],
         "warnings": memory["warnings"],
@@ -526,12 +464,18 @@ def palate_describe_item(
     language: list[str] | None = None,
     genre: list[str] | None = None,
     cuisine: dict[str, Any] | list[str] | None = None,
+    michelin_status: str | None = None,
+    michelin_url: str | None = None,
+    michelin_green_star: bool | None = None,
+    google_rating: float | None = None,
+    google_rating_count: int | None = None,
+    google_url: str | None = None,
     runtime: int | None = None,
     seasons: int | None = None,
     imdb_id: str | None = None,
     fetch_external_ratings: bool = True,
 ) -> dict[str, Any]:
-    """Describe an item without storing; enrich only when no confident memory exists."""
+    """Tell about an item without storing, even when the user says do not save."""
     if entity_type not in ENTITY_TYPES:
         raise ValueError(f"entity_type must be one of: {', '.join(ENTITY_TYPES)}")
     if not isinstance(item_text, str) or not item_text.strip():
@@ -596,6 +540,12 @@ def palate_describe_item(
         language=language,
         genre=genre,
         cuisine=cuisine,
+        michelin_status=michelin_status,
+        michelin_url=michelin_url,
+        michelin_green_star=michelin_green_star,
+        google_rating=google_rating,
+        google_rating_count=google_rating_count,
+        google_url=google_url,
         runtime=runtime,
         seasons=seasons,
         watched=None,
@@ -619,6 +569,9 @@ def palate_describe_item(
         "normalized_attributes": memory["normalized_attributes"],
         "normalized_attribute_intervals_95": memory[
             "normalized_attribute_intervals_95"
+        ],
+        "normalized_attribute_intervals_1sigma": memory[
+            "normalized_attribute_intervals_1sigma"
         ],
         "suggested_remember": {
             "tool": "palate_remember",
@@ -652,6 +605,12 @@ def compute_memory_payload(
     language: list[str] | None,
     genre: list[str] | None,
     cuisine: dict[str, Any] | list[str] | None,
+    michelin_status: str | None,
+    michelin_url: str | None,
+    michelin_green_star: bool | None,
+    google_rating: float | None,
+    google_rating_count: int | None,
+    google_url: str | None,
     runtime: int | None,
     seasons: int | None,
     watched: bool | None,
@@ -698,6 +657,9 @@ def compute_memory_payload(
         key: attribute_interval_95(value)
         for key, value in normalized_attribute_payload.items()
     }
+    normalized_attribute_intervals_1sigma = normalize_attribute_intervals_1sigma(
+        normalized_attribute_payload,
+    )
     metadata, metadata_warnings = prepare_entity_metadata(
         entity_type=type,
         canonical_name=canonical_name,
@@ -713,6 +675,12 @@ def compute_memory_payload(
         language=language,
         genre=genre,
         cuisine=cuisine,
+        michelin_status=michelin_status,
+        michelin_url=michelin_url,
+        michelin_green_star=michelin_green_star,
+        google_rating=google_rating,
+        google_rating_count=google_rating_count,
+        google_url=google_url,
         runtime=runtime,
         seasons=seasons,
         watched=watched,
@@ -748,6 +716,7 @@ def compute_memory_payload(
         },
         "normalized_attributes": normalized_attributes,
         "normalized_attribute_intervals_95": normalized_attribute_intervals_95,
+        "normalized_attribute_intervals_1sigma": normalized_attribute_intervals_1sigma,
         "sources": enrichment.get("sources") or [],
         "server_llm_used": {"enrichment": used_server_enrichment},
         "warnings": metadata_warnings,
@@ -895,6 +864,34 @@ def normalize_client_attributes(
     return normalized
 
 
+def normalize_attribute_intervals_1sigma(
+    attributes: dict[str, Any],
+) -> dict[str, dict[str, float]]:
+    return {
+        key: interval
+        for key, value in attributes.items()
+        if (interval := attribute_interval_for_level(value, "interval_1sigma"))
+        is not None
+    }
+
+
+def attribute_interval_for_level(
+    value: Any,
+    key: str,
+) -> dict[str, float] | None:
+    if not isinstance(value, dict) or not isinstance(value.get(key), dict):
+        return None
+    try:
+        return attribute_interval_95(
+            {
+                "value": attribute_value(value),
+                "interval_95": value[key],
+            }
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 @mcp.tool()
 @logged_tool
 def palate_recall(
@@ -902,7 +899,7 @@ def palate_recall(
     context: dict[str, Any] | None = None,
     intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Recall explicit Palate memory. Pass intent from the client to avoid a server LLM call."""
+    """Recall saved Palate memories by name or detail; use when not asking to rank."""
     context = context or {}
     intent, parsed_intent_with_llm = resolve_intent(query, context, intent)
     retrieval = retrieve_candidates(store, intent)
@@ -919,7 +916,7 @@ def palate_recall(
 @mcp.tool()
 @logged_tool
 def palate_delete_record(id: str) -> dict[str, Any]:
-    """Delete one Palate memory by exact id or very high-confidence fuzzy name."""
+    """Delete by exact id/name or 99%+ high-confidence fuzzy name; below 99% returns candidates."""
     if not isinstance(id, str) or not id.strip():
         raise ValueError("id is required and must not be blank.")
     query = id.strip()
@@ -969,7 +966,7 @@ def entity_by_any_id(entity_id: str) -> dict[str, Any] | None:
 def fuzzy_delete_candidates(query: str) -> list[dict[str, Any]]:
     candidates = []
     for entity in store.list_entities():
-        confidence = name_match_confidence(query, entity.get("canonical_name", ""))
+        confidence = delete_match_confidence(query, entity.get("canonical_name", ""))
         if confidence < 0.5:
             continue
         candidates.append(
@@ -982,6 +979,14 @@ def fuzzy_delete_candidates(query: str) -> list[dict[str, Any]]:
             }
         )
     return sorted(candidates, key=lambda match: match["confidence"], reverse=True)
+
+
+def delete_match_confidence(query: str, canonical_name: str) -> float:
+    query_norm = normalize_name_for_match(query)
+    name_norm = normalize_name_for_match(canonical_name)
+    if query_norm and query_norm == name_norm:
+        return 1.0
+    return min(name_match_confidence(query, canonical_name), 0.98)
 
 
 def deleted_record_response(
@@ -1068,7 +1073,21 @@ def remember_metadata_arguments(entity_type: str, metadata: dict[str, Any]) -> d
             "genre": metadata.get("genre"),
         }
     if is_restaurant_type(entity_type):
-        return {"cuisine": metadata.get("cuisine")}
+        michelin = metadata.get("michelin") or {}
+        michelin_status = michelin.get("status")
+        return {
+            "cuisine": metadata.get("cuisine"),
+            "michelin_status": (
+                michelin_status if michelin_status not in {None, "unknown"} else None
+            ),
+            "michelin_url": michelin.get("source_url"),
+            "michelin_green_star": (
+                michelin.get("green_star") if michelin.get("green_star") else None
+            ),
+            "google_rating": (metadata.get("google") or {}).get("rating"),
+            "google_rating_count": (metadata.get("google") or {}).get("rating_count"),
+            "google_url": (metadata.get("google") or {}).get("source_url"),
+        }
     if is_media_type(entity_type):
         return {
             "synopsis": metadata.get("synopsis"),
@@ -1152,6 +1171,12 @@ def prepare_entity_metadata(
     language: list[str] | None,
     genre: list[str] | None,
     cuisine: dict[str, Any] | list[str] | None,
+    michelin_status: str | None,
+    michelin_url: str | None,
+    michelin_green_star: bool | None,
+    google_rating: float | None,
+    google_rating_count: int | None,
+    google_url: str | None,
     runtime: int | None,
     seasons: int | None,
     watched: bool | None,
@@ -1172,6 +1197,12 @@ def prepare_entity_metadata(
             enrichment_metadata=enrichment_metadata,
             genre=genre,
             cuisine=cuisine,
+            michelin_status=michelin_status,
+            michelin_url=michelin_url,
+            michelin_green_star=michelin_green_star,
+            google_rating=google_rating,
+            google_rating_count=google_rating_count,
+            google_url=google_url,
         )
 
     return prepare_media_metadata(
@@ -1261,6 +1292,12 @@ def prepare_restaurant_metadata(
     enrichment_metadata: dict[str, Any],
     genre: list[str] | None,
     cuisine: dict[str, Any] | list[str] | None,
+    michelin_status: str | None,
+    michelin_url: str | None,
+    michelin_green_star: bool | None,
+    google_rating: float | None,
+    google_rating_count: int | None,
+    google_url: str | None,
 ) -> tuple[dict[str, Any], list[str]]:
     metadata = normalize_restaurant_metadata(enrichment_metadata)
     manual_paths: set[tuple[str, ...]] = set()
@@ -1271,6 +1308,34 @@ def prepare_restaurant_metadata(
     elif genre is not None:
         metadata = set_restaurant_field(metadata, ("genre",), genre)
         manual_paths.add(("cuisine",))
+
+    if any(
+        value is not None
+        for value in (michelin_status, michelin_url, michelin_green_star)
+    ):
+        michelin = dict(metadata.get("michelin") or {})
+        if michelin_status is not None:
+            michelin["status"] = michelin_status
+        if michelin_url is not None:
+            michelin["source_url"] = michelin_url
+        if michelin_green_star is not None:
+            michelin["green_star"] = michelin_green_star
+        metadata = set_restaurant_field(metadata, ("michelin",), michelin)
+        manual_paths.add(("michelin",))
+
+    if any(
+        value is not None
+        for value in (google_rating, google_rating_count, google_url)
+    ):
+        google = dict(metadata.get("google") or {})
+        if google_rating is not None:
+            google["rating"] = google_rating
+        if google_rating_count is not None:
+            google["rating_count"] = google_rating_count
+        if google_url is not None:
+            google["source_url"] = google_url
+        metadata = set_restaurant_field(metadata, ("google",), google)
+        manual_paths.add(("google",))
 
     return merge_restaurant_metadata(metadata, {}, protected_paths=manual_paths), []
 

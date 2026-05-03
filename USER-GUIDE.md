@@ -22,8 +22,8 @@ series, use the Palate connector instead of relying on chat memory alone.
 
 Use Palate to:
 - remember explicit preferences, ratings, notes, and recommendations
-- look up the computed Palate record without storing it when I explicitly say
-  not to store it
+- describe or enrich an item without storing it when I ask to tell me about an
+  item or explicitly say not to save it
 - recall saved taste memories
 - evaluate pasted option sets such as wine lists or restaurant shortlists
 - recommend from existing memory using the current context
@@ -38,7 +38,7 @@ When remembering an item and my experience or score is missing, ask one
 follow-up: "How do you rate it from 1-10? Answer no if you have not tried it."
 For movies and series, treat "tried it" as "watched it." Do not send manual
 attributes; Palate derives attributes from the description.
-Use lookup without storing only when I explicitly ask you not to store the item.
+Use `palate_describe_item` for "tell me about" and "do not save" prompts.
 ```
 
 If the client does not use Palate automatically, name it directly:
@@ -137,6 +137,30 @@ vegetarian_vegan, vietnamese, other
 Use `other` when no cuisine category reaches the 40% match threshold. Older
 client calls that pass restaurant cuisine as `genre` are still accepted and
 converted to scored `cuisine`.
+
+Restaurants can also store Michelin Guide metadata under `metadata.michelin`.
+Allowed Michelin statuses are:
+
+```text
+unknown, selected, bib_gourmand, one_star, two_stars, three_stars, not_listed
+```
+
+Treat Michelin status as source-qualified reference metadata, not a taste
+attribute. Use official `guide.michelin.com` evidence when setting a distinction
+or star count. If no official Michelin source is available, leave the status
+`unknown` rather than inferring absence from generic web results.
+
+Restaurants can also store Google rating metadata under `metadata.google`,
+including:
+
+```text
+rating, rating_count, source_url, source, checked_at
+```
+
+Treat Google rating as volatile reference metadata. Use Google Maps, a Google
+Business Profile, or Google Places data when setting `rating` and
+`rating_count`. If only third-party review sites or generic snippets are
+available, leave the Google fields empty.
 
 Your own 1-10 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between
@@ -305,6 +329,11 @@ Best practice:
   you provide your own rating, Palate marks the item as watched.
 - For restaurants, include cuisine as `cuisine` when known. Use scored entries
   when available; a list of cuisine names is also accepted.
+- For restaurants, include `michelin_status`, `michelin_url`, and
+  `michelin_green_star` only when you have official Michelin Guide evidence.
+- For restaurants, include `google_rating`, `google_rating_count`, and
+  `google_url` only when sourced from Google Maps, Google Business Profile, or
+  Google Places data.
 - For music, include artist, album, personnel, and genre when known.
 
 The client LLM may create a stable internal ID for the item. If you want to be
@@ -315,38 +344,13 @@ Use Palate to remember this as id wine_ridge_estate_cabernet_2019:
 Ridge Estate Cabernet 2019, wine, tried, 9/10, premium, full-bodied, and oaky.
 ```
 
-### Lookup Without Storing
-
-Use this when the user wants Palate to compute the normalized record, attributes,
-metadata, signals, or external media ratings, but explicitly says not to store
-the item. Do not use this as a default preview before remembering.
-
-Good prompts:
-
-```text
-Use Palate to look this up but do not store it:
-Name: Heat
-Type: movie
-Description: intense, precise, classic Los Angeles crime film
-Rating: 10/10
-Director: Michael Mann
-IMDb ID: tt0113277
-```
-
-Best practice:
-
-- Call `palate_lookup` only when the user explicitly says not to store the item.
-- Set `do_not_store=true`.
-- Follow the same rating and metadata guidance as `palate_remember`.
-- Pass `attributes` and optional `attribute_intervals_95` when you can map them
-  confidently; omit them when you want Palate's server LLM to enrich the item.
-
 ### Describe Or Enrich Before Remembering
 
 Use this for questions such as "tell me about Gaja 2016 Barbaresco" when the
-user has not explicitly asked to save anything. Call `palate_describe_item`.
-It is read-only: it first checks existing Palate memory, then enriches the item
-only if no confident memory exists.
+user has not explicitly asked to save anything, including prompts that say "do
+not save it." Call `palate_describe_item`. It is read-only: it first checks
+existing Palate memory, then enriches the item only if no confident memory
+exists.
 
 Good prompts:
 
@@ -366,8 +370,8 @@ Best practice:
 - Pass `entity_type` from client understanding when obvious. For the example
   above, use `wine`.
 - Use this path for bare item names or partial descriptions where restaurant
-  cuisine, ambiance, menu, price tier, or other descriptive fields may need web
-  grounding.
+  cuisine, Michelin status, Google rating, ambiance, menu, price tier, or other
+  descriptive fields may need web grounding.
 - If Palate returns `source="memory"`, answer from the existing record.
 - If Palate returns `source="memory_confirmation_required"`, ask the user to
   confirm the possible match before using or updating it.
@@ -613,8 +617,9 @@ Palate responses usually include:
 - `memory_status`: whether this is something you wanted to try/watch, already
   tried/watched, liked, or disliked. Palate infers "want to try" from an item
   being stored without a rating or tried/watched signal.
-- `metadata`: movie and series metadata, restaurant cuisine, music
-  artist/album/personnel/genre, and external ratings when stored
+- `metadata`: movie and series metadata, restaurant cuisine, Michelin status,
+  Google rating data, music artist/album/personnel/genre, and external ratings
+  when stored
 - `negative_signals`: reasons an item was penalized or excluded
 - `unmatched_options`: pasted options that Palate could not match to memory
 

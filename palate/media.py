@@ -85,6 +85,16 @@ RESTAURANT_GENRES = [
     "other",
 ]
 
+MICHELIN_STATUSES = [
+    "unknown",
+    "selected",
+    "bib_gourmand",
+    "one_star",
+    "two_stars",
+    "three_stars",
+    "not_listed",
+]
+
 MEDIA_GENRE_ALIASES = {
     "children": "family",
     "kids": "family",
@@ -162,6 +172,40 @@ RESTAURANT_GENRE_ALIASES = {
     "vietnamese": "vietnamese",
 }
 
+MICHELIN_STATUS_ALIASES = {
+    "recommended": "selected",
+    "selected_restaurant": "selected",
+    "selected_restaurants": "selected",
+    "michelin_selected": "selected",
+    "michelin_plate": "selected",
+    "plate": "selected",
+    "bib": "bib_gourmand",
+    "bib_gourmand": "bib_gourmand",
+    "bib_gourmands": "bib_gourmand",
+    "one_michelin_star": "one_star",
+    "one_star": "one_star",
+    "1_star": "one_star",
+    "1_stars": "one_star",
+    "1_michelin_star": "one_star",
+    "two_michelin_stars": "two_stars",
+    "two_star": "two_stars",
+    "two_stars": "two_stars",
+    "2_star": "two_stars",
+    "2_stars": "two_stars",
+    "2_michelin_stars": "two_stars",
+    "three_michelin_stars": "three_stars",
+    "three_star": "three_stars",
+    "three_stars": "three_stars",
+    "3_star": "three_stars",
+    "3_stars": "three_stars",
+    "3_michelin_stars": "three_stars",
+    "not_in_guide": "not_listed",
+    "not_listed": "not_listed",
+    "not_michelin_listed": "not_listed",
+    "no_michelin_listing": "not_listed",
+    "none": "not_listed",
+}
+
 MEDIA_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("synopsis",),
     ("main_actors",),
@@ -188,7 +232,11 @@ MUSIC_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
     ("genre",),
 )
 
-RESTAURANT_METADATA_PATHS: tuple[tuple[str, ...], ...] = (("cuisine",),)
+RESTAURANT_METADATA_PATHS: tuple[tuple[str, ...], ...] = (
+    ("cuisine",),
+    ("michelin",),
+    ("google",),
+)
 
 
 def is_media_type(entity_type: str | None) -> bool:
@@ -273,11 +321,28 @@ def normalize_restaurant_metadata(metadata: dict[str, Any] | None) -> dict[str, 
     raw = metadata.get("cuisine")
     if raw is not None:
         result["cuisine"] = normalize_restaurant_cuisine(raw)
-        return result
-
-    raw = metadata.get("genre")
-    if raw is not None:
+    elif metadata.get("genre") is not None:
+        raw = metadata.get("genre")
         result["cuisine"] = normalize_restaurant_cuisine(raw)
+
+    raw_michelin = metadata.get("michelin")
+    if raw_michelin is None and metadata.get("michelin_status") is not None:
+        raw_michelin = {"status": metadata.get("michelin_status")}
+    if raw_michelin is not None:
+        result["michelin"] = normalize_michelin_status(raw_michelin)
+
+    raw_google = metadata.get("google")
+    if raw_google is None and (
+        metadata.get("google_rating") is not None
+        or metadata.get("google_rating_count") is not None
+    ):
+        raw_google = {
+            "rating": metadata.get("google_rating"),
+            "rating_count": metadata.get("google_rating_count"),
+            "source_url": metadata.get("google_url"),
+        }
+    if raw_google is not None:
+        result["google"] = normalize_google_rating_metadata(raw_google)
 
     return result
 
@@ -310,6 +375,10 @@ def set_restaurant_field(
     result = normalize_restaurant_metadata(metadata)
     if path in {("cuisine",), ("genre",)}:
         set_path(result, ("cuisine",), normalize_restaurant_cuisine(value))
+    if path == ("michelin",):
+        set_path(result, ("michelin",), normalize_michelin_status(value))
+    if path == ("google",):
+        set_path(result, ("google",), normalize_google_rating_metadata(value))
     return result
 
 
@@ -463,6 +532,8 @@ def metadata_search_text(metadata: dict[str, Any] | None) -> str:
     parts.extend(music["personnel"])
     parts.extend(music["genre"])
     parts.extend(restaurant_cuisine_search_terms(restaurant))
+    parts.extend(restaurant_michelin_search_terms(restaurant))
+    parts.extend(restaurant_google_search_terms(restaurant))
 
     return " ".join(parts)
 
@@ -649,6 +720,179 @@ def prune_other_cuisine(cuisine: dict[str, dict[str, Any]]) -> dict[str, dict[st
     return cuisine
 
 
+def normalize_michelin_status(value: Any) -> dict[str, Any]:
+    result = {
+        "status": "unknown",
+        "stars": None,
+        "green_star": False,
+        "source_url": None,
+        "source": None,
+        "checked_at": None,
+    }
+    if isinstance(value, str):
+        result["status"] = michelin_status_match(value)
+        result["stars"] = michelin_stars_from_status(result["status"])
+        return result
+    if not isinstance(value, dict):
+        return result
+
+    status = michelin_status_match(
+        value.get("status")
+        or value.get("distinction")
+        or value.get("award")
+        or value.get("michelin_status")
+    )
+    stars = normalize_michelin_stars(value.get("stars", value.get("star_count")))
+    if stars is None:
+        stars = michelin_stars_from_status(status)
+    if stars is not None and stars > 0:
+        status = michelin_status_from_stars(stars)
+
+    result["status"] = status
+    result["stars"] = stars
+    result["green_star"] = normalize_bool(
+        value.get("green_star", value.get("michelin_green_star", False))
+    )
+    result["source_url"] = normalize_string(
+        value.get("source_url") or value.get("url") or value.get("michelin_url")
+    )
+    result["source"] = normalize_string(value.get("source"))
+    result["checked_at"] = normalize_string(value.get("checked_at"))
+    if result["source"] is None and is_official_michelin_url(result["source_url"]):
+        result["source"] = "guide.michelin.com"
+    return result
+
+
+def michelin_status_match(value: Any) -> str:
+    key = normalize_genre_key(value)
+    if not key:
+        return "unknown"
+    if key in MICHELIN_STATUS_ALIASES:
+        return MICHELIN_STATUS_ALIASES[key]
+    if key in MICHELIN_STATUSES:
+        return key
+    return "unknown"
+
+
+def normalize_michelin_stars(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        stars = int(float(str(value).replace(",", "")))
+    except (TypeError, ValueError):
+        status = michelin_status_match(value)
+        return michelin_stars_from_status(status)
+    return max(0, min(3, stars))
+
+
+def michelin_stars_from_status(status: str) -> int | None:
+    return {
+        "one_star": 1,
+        "two_stars": 2,
+        "three_stars": 3,
+        "selected": 0,
+        "bib_gourmand": 0,
+        "not_listed": 0,
+    }.get(status)
+
+
+def michelin_status_from_stars(stars: int) -> str:
+    return {
+        1: "one_star",
+        2: "two_stars",
+        3: "three_stars",
+    }.get(stars, "selected")
+
+
+def is_official_michelin_url(value: Any) -> bool:
+    text = str(value or "").lower()
+    return "guide.michelin.com" in text
+
+
+def restaurant_michelin_search_terms(metadata: dict[str, Any] | None) -> list[str]:
+    michelin = normalize_restaurant_metadata(metadata).get("michelin") or {}
+    status = michelin.get("status")
+    if not status or status == "unknown":
+        return []
+    terms = ["michelin", status.replace("_", " ")]
+    stars = michelin.get("stars")
+    if stars:
+        terms.extend([f"{stars} michelin star", f"{stars} star"])
+    if michelin.get("green_star"):
+        terms.append("michelin green star")
+    return terms
+
+
+def normalize_google_rating_metadata(value: Any) -> dict[str, Any]:
+    result = {
+        "rating": None,
+        "rating_count": None,
+        "source_url": None,
+        "source": None,
+        "checked_at": None,
+    }
+    if isinstance(value, (int, float, str)):
+        result["rating"] = normalize_google_rating(value)
+        return result
+    if not isinstance(value, dict):
+        return result
+
+    result["rating"] = normalize_google_rating(
+        value.get("rating", value.get("google_rating"))
+    )
+    result["rating_count"] = normalize_nonnegative_int(
+        value.get(
+            "rating_count",
+            value.get("userRatingCount", value.get("user_ratings_total")),
+        )
+    )
+    result["source_url"] = normalize_string(
+        value.get("source_url") or value.get("url") or value.get("google_url")
+    )
+    result["source"] = normalize_string(value.get("source"))
+    result["checked_at"] = normalize_string(value.get("checked_at"))
+    if result["source"] is None and is_official_google_rating_url(
+        result["source_url"]
+    ):
+        result["source"] = "google"
+    return result
+
+
+def normalize_google_rating(value: Any) -> float | None:
+    rating = normalize_float(value)
+    if rating is None:
+        return None
+    return round(max(0.0, min(5.0, rating)), 1)
+
+
+def normalize_nonnegative_int(value: Any) -> int | None:
+    result = normalize_int(value)
+    if result is None:
+        return None
+    return max(0, result)
+
+
+def is_official_google_rating_url(value: Any) -> bool:
+    text = str(value or "").lower()
+    return (
+        "google.com/maps" in text
+        or "maps.google." in text
+        or "maps.app.goo.gl" in text
+    )
+
+
+def restaurant_google_search_terms(metadata: dict[str, Any] | None) -> list[str]:
+    google = normalize_restaurant_metadata(metadata).get("google") or {}
+    rating = google.get("rating")
+    if rating is None:
+        return []
+    terms = ["google", f"google rating {float(rating):g}"]
+    rating_count = google.get("rating_count")
+    if rating_count is not None:
+        terms.append(f"{int(rating_count)} google ratings")
+    return terms
+
+
 def restaurant_cuisine_search_terms(
     metadata: dict[str, Any] | None,
     *,
@@ -738,4 +982,25 @@ def normalize_runtime(value: Any) -> int | None:
 
 
 def is_empty_metadata_value(value: Any) -> bool:
+    if isinstance(value, dict) and set(value).issubset(
+        {"status", "stars", "green_star", "source_url", "source", "checked_at"}
+    ):
+        return (
+            value.get("status") in {None, "", "unknown"}
+            and value.get("stars") is None
+            and not value.get("green_star")
+            and not value.get("source_url")
+            and not value.get("source")
+            and not value.get("checked_at")
+        )
+    if isinstance(value, dict) and set(value).issubset(
+        {"rating", "rating_count", "source_url", "source", "checked_at"}
+    ):
+        return (
+            value.get("rating") is None
+            and value.get("rating_count") is None
+            and not value.get("source_url")
+            and not value.get("source")
+            and not value.get("checked_at")
+        )
     return value is None or value is False or value == "" or value == [] or value == {}

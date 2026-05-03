@@ -190,7 +190,15 @@ class ServerToolBehaviorTest(unittest.TestCase):
 
         self.assertFalse(result["deleted"])
         self.assertEqual(result["id"], "missing")
+        self.assertEqual(result["candidates"], [])
+        self.assertEqual(result["needs_confirmation"], [])
         self.assertIn("No Palate record found", result["error"])
+
+    def test_delete_record_rejects_blank_query(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            server.palate_delete_record("  ")
+
+        self.assertIn("must not be blank", str(caught.exception))
 
     def test_delete_record_removes_exact_name(self) -> None:
         result = server.palate_delete_record("Mike's Cabernet")
@@ -199,6 +207,27 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertEqual(result["id"], "wine_mike")
         self.assertEqual(result["query"], "Mike's Cabernet")
         self.assertEqual(result["record"]["name"], "Mike's Cabernet")
+
+    def test_delete_record_removes_normalized_exact_name(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "wine_ridge_cab_sauv",
+                "type": "wine",
+                "canonical_name": "Ridge Estate Cabernet Sauvignon",
+                "notes": "Benchmark cabernet.",
+                "attributes": {"premium": 0.8},
+            }
+        )
+
+        result = server.palate_delete_record("Ridge Est Cab Sauv 2019")
+
+        self.assertTrue(result["deleted"])
+        self.assertEqual(result["id"], "wine_ridge_cab_sauv")
+        self.assertEqual(result["match"]["confidence"], 1.0)
+        self.assertNotIn(
+            "wine_ridge_cab_sauv",
+            {entity["id"] for entity in self.store.list_entities()},
+        )
 
     def test_delete_record_returns_candidates_for_fuzzy_name(self) -> None:
         result = server.palate_delete_record("Mike Syrah")
@@ -210,6 +239,39 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIn(
             "wine_mike",
             {entity["id"] for entity in self.store.list_entities()},
+        )
+
+    def test_delete_record_does_not_auto_delete_partial_substring_name(self) -> None:
+        result = server.palate_delete_record("Mike")
+
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["needs_confirmation"][0]["matched_id"], "wine_mike")
+        self.assertEqual(result["needs_confirmation"][0]["confidence"], 0.98)
+        self.assertIn("choose one by id", result["ask_user"])
+        self.assertIn(
+            "wine_mike",
+            {entity["id"] for entity in self.store.list_entities()},
+        )
+
+    def test_delete_record_returns_multiple_confirmation_candidates(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "wine_mike_merlot",
+                "type": "wine",
+                "canonical_name": "Mike's Merlot",
+                "notes": "Another wine from Mike.",
+                "attributes": {"premium": 0.4},
+            }
+        )
+
+        result = server.palate_delete_record("Mike")
+
+        self.assertFalse(result["deleted"])
+        candidate_ids = {candidate["matched_id"] for candidate in result["candidates"]}
+        self.assertEqual(candidate_ids, {"wine_mike", "wine_mike_merlot"})
+        self.assertEqual(result["needs_confirmation"], result["candidates"])
+        self.assertTrue(
+            all(candidate["confidence"] < 0.99 for candidate in result["candidates"])
         )
 
     def test_remember_accepts_valid_client_attributes_without_server_enrichment(self) -> None:
@@ -359,7 +421,22 @@ class ServerToolBehaviorTest(unittest.TestCase):
                             "value": 0.7,
                             "interval_95": {"lower": 0.45, "upper": 0.85},
                         },
-                    }
+                    },
+                    "michelin": {
+                        "status": "selected",
+                        "stars": 0,
+                        "green_star": False,
+                        "source_url": "https://guide.michelin.com/gb/en/test",
+                        "source": "guide.michelin.com",
+                        "checked_at": "2026-05-03",
+                    },
+                    "google": {
+                        "rating": 4.6,
+                        "rating_count": 234,
+                        "source_url": "https://www.google.com/maps/place/test",
+                        "source": "google",
+                        "checked_at": "2026-05-03",
+                    },
                 },
             },
         ):
@@ -381,6 +458,65 @@ class ServerToolBehaviorTest(unittest.TestCase):
             {"italian", "vegetarian_vegan"},
         )
         self.assertEqual(stored["metadata"]["cuisine"]["italian"]["value"], 0.9)
+        self.assertEqual(stored["metadata"]["michelin"]["status"], "selected")
+        self.assertEqual(
+            stored["metadata"]["michelin"]["source_url"],
+            "https://guide.michelin.com/gb/en/test",
+        )
+        self.assertEqual(stored["metadata"]["google"]["rating"], 4.6)
+        self.assertEqual(stored["metadata"]["google"]["rating_count"], 234)
+
+    def test_remember_accepts_manual_michelin_status(self) -> None:
+        with patch.object(
+            server,
+            "normalize_restaurant_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            server.palate_remember(
+                id="restaurant_michelin",
+                type="restaurant",
+                canonical_name="Star Test",
+                description="A Michelin-listed restaurant.",
+                michelin_status="Two Michelin Stars",
+                michelin_url="https://guide.michelin.com/gb/en/star-test",
+                michelin_green_star=True,
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "restaurant_michelin"
+        )
+
+        self.assertEqual(stored["metadata"]["michelin"]["status"], "two_stars")
+        self.assertEqual(stored["metadata"]["michelin"]["stars"], 2)
+        self.assertTrue(stored["metadata"]["michelin"]["green_star"])
+
+    def test_remember_accepts_manual_google_rating(self) -> None:
+        with patch.object(
+            server,
+            "normalize_restaurant_enrichment",
+            return_value={"attributes": {}, "notes": "", "metadata": {}},
+        ):
+            server.palate_remember(
+                id="restaurant_google",
+                type="restaurant",
+                canonical_name="Google Test",
+                description="A restaurant with Google rating.",
+                google_rating=4.8,
+                google_rating_count=456,
+                google_url="https://www.google.com/maps/place/google-test",
+            )
+
+        stored = next(
+            entity
+            for entity in self.store.list_entities()
+            if entity["id"] == "restaurant_google"
+        )
+
+        self.assertEqual(stored["metadata"]["google"]["rating"], 4.8)
+        self.assertEqual(stored["metadata"]["google"]["rating_count"], 456)
+        self.assertEqual(stored["metadata"]["google"]["source"], "google")
 
     def test_remember_accepts_legacy_restaurant_genre_argument(self) -> None:
         with patch.object(
@@ -437,65 +573,84 @@ class ServerToolBehaviorTest(unittest.TestCase):
             1.0,
         )
 
-    def test_lookup_computes_memory_without_storing(self) -> None:
-        before_ids = {entity["id"] for entity in self.store.list_entities()}
-
+    def test_describe_item_suggests_michelin_remember_payload(self) -> None:
         with patch.object(
             server,
-            "normalize_enrichment",
+            "normalize_restaurant_enrichment",
             return_value={
-                "attributes": {
-                    "suspenseful": {
-                        "value": 0.8,
-                        "interval_95": {"lower": 0.7, "upper": 0.9},
-                    },
-                },
-                "notes": "normalized",
+                "attributes": {},
+                "notes": "Michelin selected restaurant",
                 "metadata": {
-                    "director": "LLM Director",
-                    "genre": ["Thriller"],
+                    "cuisine": ["British"],
+                    "michelin": {
+                        "status": "selected",
+                        "stars": 0,
+                        "green_star": False,
+                        "source_url": "https://guide.michelin.com/gb/en/test",
+                        "source": "guide.michelin.com",
+                        "checked_at": "2026-05-03",
+                    },
+                    "google": {
+                        "rating": 4.7,
+                        "rating_count": 321,
+                        "source_url": "https://www.google.com/maps/place/test",
+                        "source": "google",
+                        "checked_at": "2026-05-03",
+                    },
                 },
             },
         ):
-            result = server.palate_lookup(
-                type="movie",
-                canonical_name="Lookup Movie",
-                description="A tense thriller.",
-                do_not_store=True,
-                rating=8,
-                director="Manual Director",
-                fetch_external_ratings=False,
+            result = server.palate_describe_item(
+                item_text="Michelin Test",
+                entity_type="restaurant",
             )
 
-        after_ids = {entity["id"] for entity in self.store.list_entities()}
-        self.assertEqual(after_ids, before_ids)
-        self.assertFalse(result["stored"])
-        self.assertEqual(result["record"]["canonical_name"], "Lookup Movie")
-        self.assertEqual(result["record"]["attributes"]["suspenseful"], 0.8)
+        arguments = result["suggested_remember"]["arguments"]
+        self.assertEqual(arguments["michelin_status"], "selected")
         self.assertEqual(
-            result["record"]["attribute_intervals_95"]["suspenseful"],
-            {"lower": 0.7, "upper": 0.9},
+            arguments["michelin_url"],
+            "https://guide.michelin.com/gb/en/test",
         )
-        self.assertEqual(result["record"]["metadata"]["director"], "Manual Director")
-        self.assertTrue(result["record"]["metadata"]["watched"])
+        self.assertEqual(arguments["google_rating"], 4.7)
+        self.assertEqual(arguments["google_rating_count"], 321)
         self.assertEqual(
-            {signal["type"] for signal in result["record"]["signals"]},
-            {"rating", "tried"},
+            arguments["google_url"],
+            "https://www.google.com/maps/place/test",
         )
 
-    def test_lookup_requires_explicit_do_not_store_flag(self) -> None:
-        with patch.object(server, "normalize_enrichment", side_effect=AssertionError("should not call")):
-            with self.assertRaises(ValueError) as caught:
-                server.palate_lookup(
-                    type="wine",
-                    canonical_name="Lookup Wine",
-                    description="A structured wine.",
-                    do_not_store=False,
-                    fetch_external_ratings=False,
-                )
+    def test_describe_item_returns_direct_restaurant_1sigma_interval(self) -> None:
+        with patch.object(
+            server,
+            "normalize_restaurant_enrichment",
+            return_value={
+                "attributes": {
+                    "premium": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.4, "upper": 0.9},
+                        "interval_1sigma": {"lower": 0.58, "upper": 0.76},
+                    }
+                },
+                "notes": "grounded restaurant",
+                "metadata": {},
+            },
+        ):
+            result = server.palate_describe_item(
+                item_text="Casa Test",
+                entity_type="restaurant",
+            )
 
-        self.assertIn("do_not_store=true", str(caught.exception))
-        self.assertIn("explicitly says not to store", str(caught.exception))
+        self.assertEqual(
+            result["normalized_attribute_intervals_95"]["premium"],
+            {"lower": 0.4, "upper": 0.9},
+        )
+        self.assertEqual(
+            result["normalized_attribute_intervals_1sigma"]["premium"],
+            {"lower": 0.58, "upper": 0.76},
+        )
+        self.assertNotIn(
+            "normalized_attribute_intervals_1sigma",
+            result["suggested_remember"]["arguments"],
+        )
 
     def test_describe_item_returns_existing_memory_without_enriching(self) -> None:
         before_ids = {entity["id"] for entity in self.store.list_entities()}
@@ -580,12 +735,18 @@ class ServerToolBehaviorTest(unittest.TestCase):
         self.assertIn("remember", result["ask_user"])
         self.assertEqual(result["server_llm_used"], {"enrichment": True})
 
-    def test_lookup_mcp_schema_requires_do_not_store(self) -> None:
+    def test_lookup_is_not_public_mcp_tool(self) -> None:
         tools = asyncio.run(server.mcp.list_tools())
-        lookup_tool = next(tool for tool in tools if tool.name == "palate_lookup")
 
-        self.assertIn("do_not_store", lookup_tool.inputSchema["required"])
-        self.assertIn("explicitly says not to store", lookup_tool.description)
+        self.assertNotIn("palate_lookup", {tool.name for tool in tools})
+
+    def test_delete_mcp_schema_mentions_confirmation_threshold(self) -> None:
+        tools = asyncio.run(server.mcp.list_tools())
+        delete_tool = next(tool for tool in tools if tool.name == "palate_delete_record")
+
+        self.assertIn("id", delete_tool.inputSchema["required"])
+        self.assertIn("99%+", delete_tool.description)
+        self.assertIn("high-confidence fuzzy name", delete_tool.description)
 
     def test_enrich_item_is_not_public_mcp_tool(self) -> None:
         tools = asyncio.run(server.mcp.list_tools())
