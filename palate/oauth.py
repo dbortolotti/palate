@@ -65,6 +65,15 @@ def public_base_url() -> str:
     return configured.rstrip("/")
 
 
+def public_mcp_path() -> str:
+    configured = (
+        os.getenv("PALATE_PUBLIC_MCP_PATH")
+        or os.getenv("PALATE_MCP_PATH")
+        or "/mcp"
+    )
+    return "/" + configured.strip("/")
+
+
 def ensure_auth_password() -> str:
     configured = os.getenv("PALATE_AUTH_PASSWORD")
     if configured:
@@ -104,7 +113,7 @@ def build_auth_components() -> tuple[AuthSettings | None, "PalateOAuthProvider |
     )
     auth_settings = AuthSettings(
         issuer_url=AnyHttpUrl(base_url),
-        resource_server_url=AnyHttpUrl(f"{base_url}/mcp"),
+        resource_server_url=AnyHttpUrl(f"{base_url}{public_mcp_path()}"),
         client_registration_options=ClientRegistrationOptions(
             enabled=True,
             valid_scopes=scopes,

@@ -31,7 +31,7 @@
     <key>PALATE_PORT</key>
     <string>8787</string>
     <key>PALATE_MCP_PATH</key>
-    <string>/mcp</string>
+    <string>/palate</string>
     <key>PALATE_DB_PATH</key>
     <string>/Volumes/xpg_usb4/prod/palate/shared/data/palate.sqlite</string>
     <key>PALATE_MODEL</key>
@@ -55,7 +55,9 @@
     <key>PALATE_AUTH_ENABLED</key>
     <string>1</string>
     <key>PALATE_PUBLIC_BASE_URL</key>
-    <string>https://modal.tail63a6b7.ts.net/palate</string>
+    <string>https://mcp.dceb.net</string>
+    <key>PALATE_PUBLIC_MCP_PATH</key>
+    <string>/palate</string>
     <key>PALATE_AUTH_SCOPES</key>
     <string>palate.access</string>
     <key>PALATE_AUTH_PASSWORD_FILE</key>
@@ -63,9 +65,9 @@
     <key>PALATE_AUTH_STATE_PATH</key>
     <string>/Volumes/xpg_usb4/prod/palate/shared/secrets/palate-oauth.json</string>
     <key>PALATE_ALLOWED_HOSTS</key>
-    <string>127.0.0.1,127.0.0.1:8787,localhost,localhost:8787,modal.tail63a6b7.ts.net</string>
+    <string>127.0.0.1,127.0.0.1:8787,localhost,localhost:8787,modal.tail63a6b7.ts.net,mcp.dceb.net</string>
     <key>PALATE_ALLOWED_ORIGINS</key>
-    <string>https://modal.tail63a6b7.ts.net</string>
+    <string>https://modal.tail63a6b7.ts.net,https://mcp.dceb.net</string>
   </dict>
 
   <key>RunAtLoad</key>

@@ -137,9 +137,16 @@ The LaunchAgent enables Palate OAuth for remote MCP clients:
 
 ```text
 PALATE_AUTH_ENABLED=1
-PALATE_PUBLIC_BASE_URL=https://modal.tail63a6b7.ts.net/palate
+PALATE_PUBLIC_BASE_URL=https://mcp.dceb.net
+PALATE_PUBLIC_MCP_PATH=/palate
 PALATE_AUTH_SCOPES=palate.access
 ```
+
+The OAuth resource URL is `PALATE_PUBLIC_BASE_URL` plus
+`PALATE_PUBLIC_MCP_PATH`. When `PALATE_PUBLIC_MCP_PATH` is unset, Palate falls
+back to `PALATE_MCP_PATH` and then `/mcp`. For a Cloudflare Tunnel URL like
+`https://mcp.dceb.net/palate`, use `PALATE_PUBLIC_BASE_URL=https://mcp.dceb.net`
+and `PALATE_PUBLIC_MCP_PATH=/palate`.
 
 The first ChatGPT connection opens a Palate login page. The password is stored
 at:

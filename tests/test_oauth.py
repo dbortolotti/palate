@@ -161,3 +161,30 @@ class PalateOAuthConfigTest(unittest.TestCase):
             self.assertTrue(state_path.exists())
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_build_auth_components_uses_configured_public_mcp_path(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp(prefix="palate-oauth-config-"))
+        try:
+            with patch.dict(
+                "os.environ",
+                {
+                    "PALATE_AUTH_ENABLED": "1",
+                    "PALATE_PUBLIC_BASE_URL": "https://mcp.dceb.net",
+                    "PALATE_PUBLIC_MCP_PATH": "/palate",
+                    "PALATE_MCP_PATH": "/mcp",
+                    "PALATE_AUTH_PASSWORD_FILE": str(temp_dir / "password"),
+                    "PALATE_AUTH_STATE_PATH": str(temp_dir / "oauth.json"),
+                    "PALATE_AUTH_SCOPES": "palate.access",
+                },
+                clear=True,
+            ):
+                settings, _provider = build_auth_components()
+
+            self.assertIsNotNone(settings)
+            self.assertEqual(str(settings.issuer_url), "https://mcp.dceb.net/")
+            self.assertEqual(
+                str(settings.resource_server_url),
+                "https://mcp.dceb.net/palate",
+            )
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)

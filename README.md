@@ -158,8 +158,12 @@ When `PALATE_AUTH_ENABLED=1`, Palate exposes an OAuth 2.1 flow for remote MCP
 clients such as ChatGPT. The public connector URL is:
 
 ```text
-https://modal.tail63a6b7.ts.net/palate/mcp
+https://mcp.dceb.net/palate
 ```
+
+The advertised OAuth resource URL is built from `PALATE_PUBLIC_BASE_URL` plus
+`PALATE_PUBLIC_MCP_PATH`. If `PALATE_PUBLIC_MCP_PATH` is unset, Palate falls
+back to `PALATE_MCP_PATH` and then `/mcp`.
 
 The first connection opens a Palate login page. The password is read from:
 
