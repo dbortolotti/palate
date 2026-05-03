@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from palate.llm import normalize_enrichment, parse_intent
-from palate.media import MEDIA_GENRES, MUSIC_GENRES
+from palate.media import MEDIA_GENRES, MUSIC_GENRES, RESTAURANT_GENRES
 from palate.schema import ATTRIBUTE_KEYS, attribute_keys_for_type
 
 
@@ -90,8 +90,11 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
 
         self.assertEqual(result, response)
         self.assertEqual(metadata_schema["required"], ["genre"])
-        self.assertEqual(metadata_schema["properties"]["genre"]["items"]["type"], "string")
-        self.assertNotIn("enum", metadata_schema["properties"]["genre"]["items"])
+        self.assertEqual(
+            metadata_schema["properties"]["genre"]["items"]["enum"],
+            RESTAURANT_GENRES,
+        )
+        self.assertIn("other", metadata_schema["properties"]["genre"]["items"]["enum"])
 
     def test_wine_attribute_schema_uses_core_and_flavour_wheel_terms(self) -> None:
         wine_attributes = attribute_keys_for_type("wine")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 import re
 from copy import deepcopy
 from math import isfinite
@@ -58,6 +59,32 @@ MUSIC_GENRES = [
     "world",
 ]
 
+RESTAURANT_GENRES = [
+    "american",
+    "barbecue",
+    "british",
+    "chinese",
+    "eastern_european",
+    "french",
+    "greek",
+    "indian",
+    "italian",
+    "japanese",
+    "korean",
+    "latin_american",
+    "mediterranean",
+    "mexican",
+    "middle_eastern",
+    "modern_european",
+    "seafood",
+    "south_east_asian",
+    "spanish",
+    "thai",
+    "vegetarian_vegan",
+    "vietnamese",
+    "other",
+]
+
 MEDIA_GENRE_ALIASES = {
     "children": "family",
     "kids": "family",
@@ -91,24 +118,47 @@ MUSIC_GENRE_ALIASES = {
 }
 
 RESTAURANT_GENRE_ALIASES = {
+    "asian_fusion": "south_east_asian",
     "bbq": "barbecue",
     "bistro": "french",
     "british": "british",
     "cantonese": "chinese",
+    "central_european": "eastern_european",
+    "deli": "american",
     "dim_sum": "chinese",
+    "eastern_european": "eastern_european",
+    "european": "modern_european",
+    "filipino": "south_east_asian",
     "gastropub": "british",
+    "georgian": "eastern_european",
+    "greek": "greek",
     "indian": "indian",
+    "indonesian": "south_east_asian",
     "italia": "italian",
     "italian": "italian",
     "japanese": "japanese",
     "korean": "korean",
+    "latin": "latin_american",
+    "latin_american": "latin_american",
+    "lebanese": "middle_eastern",
+    "malaysian": "south_east_asian",
+    "mediterranean": "mediterranean",
     "mexican": "mexican",
+    "middle_eastern": "middle_eastern",
     "modern_european": "modern_european",
     "new_american": "american",
+    "peruvian": "latin_american",
     "pizzeria": "italian",
+    "portuguese": "spanish",
+    "seafood": "seafood",
+    "singaporean": "south_east_asian",
+    "spanish": "spanish",
     "sushi": "japanese",
     "thai": "thai",
     "trattoria": "italian",
+    "turkish": "middle_eastern",
+    "vegan": "vegetarian_vegan",
+    "vegetarian": "vegetarian_vegan",
     "vietnamese": "vietnamese",
 }
 
@@ -510,11 +560,42 @@ def normalize_genres(
 def normalize_restaurant_genres(value: Any) -> list[str]:
     result = []
     for item in normalize_string_list(value):
-        key = normalize_genre_key(item)
-        canonical = RESTAURANT_GENRE_ALIASES.get(key, key)
+        canonical = restaurant_genre_match(item)
         if canonical and canonical not in result:
             result.append(canonical)
     return result
+
+
+def restaurant_genre_match(value: Any, *, threshold: float = 0.4) -> str:
+    key = normalize_genre_key(value)
+    if not key:
+        return "other"
+    if key in RESTAURANT_GENRE_ALIASES:
+        return RESTAURANT_GENRE_ALIASES[key]
+    if key in RESTAURANT_GENRES:
+        return key
+
+    best = max(
+        RESTAURANT_GENRES,
+        key=lambda genre: genre_similarity(key, genre),
+    )
+    confidence = genre_similarity(key, best)
+    return best if confidence >= threshold else "other"
+
+
+def genre_similarity(left: str, right: str) -> float:
+    if left == right:
+        return 1.0
+    left_tokens = set(left.split("_"))
+    right_tokens = set(right.split("_"))
+    overlap = len(left_tokens & right_tokens)
+    token_score = overlap / max(len(left_tokens), len(right_tokens))
+    if token_score > 0:
+        return max(token_score, SequenceMatcher(None, left, right).ratio())
+    sequence_score = SequenceMatcher(None, left, right).ratio()
+    if left[0] == right[0] and sequence_score >= 0.75:
+        return sequence_score
+    return 0.0
 
 
 def normalize_genre_key(value: Any) -> str:

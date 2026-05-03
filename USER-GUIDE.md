@@ -121,9 +121,18 @@ funk, hip_hop, jazz, latin, metal, pop, punk, r_and_b, reggae, rock, soul,
 soundtrack, world
 ```
 
-Restaurants can also store cuisine as metadata `genre`, for example `italian`,
-`mexican`, `japanese`, `thai`, or `modern_european`. Restaurant cuisine is
-not a numeric taste attribute; it is metadata used for recall and text matching.
+Restaurants can also store cuisine as enum metadata `genre`. Restaurant cuisine
+is not a numeric taste attribute; it is metadata used for recall and text
+matching. Allowed restaurant cuisine genres:
+
+```text
+american, barbecue, british, chinese, eastern_european, french, greek, indian,
+italian, japanese, korean, latin_american, mediterranean, mexican,
+middle_eastern, modern_european, seafood, south_east_asian, spanish, thai,
+vegetarian_vegan, vietnamese, other
+```
+
+Use `other` when no cuisine category reaches the 40% match threshold.
 
 Your own 1-10 `rating` remains the personal taste signal. IMDb and Rotten
 Tomatoes are stored as external reference data and only break ties between

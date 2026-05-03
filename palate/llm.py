@@ -6,7 +6,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from .media import MEDIA_GENRES, MUSIC_GENRES
+from .media import MEDIA_GENRES, MUSIC_GENRES, RESTAURANT_GENRES
 from .schema import (
     ATTRIBUTE_KEYS,
     ATTRIBUTE_KEYS_BY_TYPE,
@@ -157,6 +157,7 @@ def normalize_enrichment(item_text: str, entity_type: str) -> dict[str, Any]:
             "allowed_attributes_by_type": ATTRIBUTE_KEYS_BY_TYPE,
             "allowed_media_genres": MEDIA_GENRES,
             "allowed_music_genres": MUSIC_GENRES,
+            "allowed_restaurant_genres": RESTAURANT_GENRES,
         },
         schema={
             "type": "object",
@@ -318,7 +319,7 @@ def restaurant_metadata_schema() -> dict[str, Any]:
         "properties": {
             "genre": {
                 "type": "array",
-                "items": {"type": "string"},
+                "items": {"type": "string", "enum": RESTAURANT_GENRES},
             },
         },
     }

@@ -337,7 +337,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
                 type="restaurant",
                 canonical_name="Casa Test",
                 description="Italian neighborhood restaurant.",
-                genre=["Mexican", "Modern European"],
+                genre=["Mexican", "Peruvian", "Nordic"],
             )
 
         stored = next(
@@ -346,7 +346,7 @@ class ServerToolBehaviorTest(unittest.TestCase):
             if entity["id"] == "restaurant_italian"
         )
 
-        self.assertEqual(stored["metadata"]["genre"], ["mexican", "modern_european"])
+        self.assertEqual(stored["metadata"]["genre"], ["mexican", "latin_american", "other"])
 
     def test_describe_item_suggests_restaurant_genre_remember_payload(self) -> None:
         with patch.object(

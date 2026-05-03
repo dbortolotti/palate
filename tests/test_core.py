@@ -443,13 +443,13 @@ class CoreBehaviorTest(unittest.TestCase):
             "id": "restaurant_mexican",
             "type": "restaurant",
             "canonical_name": "Casa Test",
-            "metadata": {"genre": ["Mexican", "Modern European"]},
+            "metadata": {"genre": ["Mexican", "Nordic"]},
             "attributes": {},
             "signals": [],
         }
 
         self.assertEqual(score_text_match(entity, "mexican dinner"), 0.5)
-        self.assertEqual(score_text_match(entity, "modern european"), 1.0)
+        self.assertEqual(score_text_match(entity, "other"), 1.0)
 
     def test_dislike_signal_penalizes_but_does_not_hide_item(self) -> None:
         self.store.add_signal("wine_alex", "dislike", "too heavy")
