@@ -351,3 +351,34 @@ class StorageBehaviorTest(unittest.TestCase):
         self.assertEqual(row["context_json"], '{"mood": "quiet"}')
         self.assertEqual(row["options_json"], '[{"canonical_name": "A"}]')
         self.assertEqual(row["ranked_json"], '[{"id": "wine_a", "score": 1.2}]')
+
+    def test_decision_feedback_counts_chosen_and_rejected_top_ranked_items(self) -> None:
+        self.store.log_decision(
+            query="which wine for steak",
+            context={},
+            options=[],
+            ranked=[
+                {"id": "wine_a", "score": 2.0},
+                {"id": "wine_b", "score": 1.8},
+                {"id": "wine_c", "score": 1.2},
+                {"id": "wine_d", "score": 0.5},
+            ],
+            chosen_entity_id="wine_b",
+        )
+        self.store.log_decision(
+            query="quiet restaurant",
+            context={},
+            options=[],
+            ranked=[{"id": "wine_a", "score": 2.0}],
+            chosen_entity_id="wine_a",
+        )
+
+        feedback = self.store.decision_feedback(
+            "steak wine",
+            ["wine_a", "wine_b", "wine_c", "wine_d"],
+        )
+
+        self.assertEqual(feedback["wine_b"], {"chosen": 1, "rejected": 0})
+        self.assertEqual(feedback["wine_a"], {"chosen": 0, "rejected": 1})
+        self.assertEqual(feedback["wine_c"], {"chosen": 0, "rejected": 1})
+        self.assertEqual(feedback["wine_d"], {"chosen": 0, "rejected": 0})

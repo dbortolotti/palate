@@ -5,7 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from palate.core import build_grounding, rank_candidates, retrieve_candidates
+from palate.core import (
+    RankingWeights,
+    build_grounding,
+    rank_candidates,
+    retrieve_candidates,
+    score_entity,
+    score_text_match,
+)
 from palate.storage import open_store
 
 
@@ -66,7 +73,7 @@ class CoreBehaviorTest(unittest.TestCase):
         )
         self.assertEqual(len(wine["signals"]), 2)
 
-    def test_recommended_by_filters_rankings_to_requested_person(self) -> None:
+    def test_recommended_by_boosts_matching_person_without_hard_excluding(self) -> None:
         intent = base_intent(
             entity_type="wine",
             filters={"min_rating": None, "recommended_by": "Mike"},
@@ -74,7 +81,8 @@ class CoreBehaviorTest(unittest.TestCase):
         retrieval = retrieve_candidates(self.store, intent)
         ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
 
-        self.assertEqual([result["id"] for result in ranked], ["wine_mike"])
+        self.assertEqual([result["id"] for result in ranked], ["wine_mike", "wine_alex"])
+        self.assertIn("not recommended by Mike", ranked[1]["negative_signals"])
 
     def test_min_rating_filter_excludes_low_rated_items(self) -> None:
         intent = base_intent(
@@ -284,6 +292,108 @@ class CoreBehaviorTest(unittest.TestCase):
             ranked[0]["attribute_details"]["oak"],
             {"value": 0.8, "interval_95": {"lower": 0.8, "upper": 0.8}},
         )
+
+    def test_wide_attribute_intervals_are_discounted_in_ranking(self) -> None:
+        self.store.upsert_entity(
+            {
+                "id": "wine_narrow_body",
+                "type": "wine",
+                "canonical_name": "Narrow Body",
+                "attributes": {
+                    "body": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.69, "upper": 0.71},
+                    }
+                },
+            }
+        )
+        self.store.upsert_entity(
+            {
+                "id": "wine_wide_body",
+                "type": "wine",
+                "canonical_name": "Wide Body",
+                "attributes": {
+                    "body": {
+                        "value": 0.7,
+                        "interval_95": {"lower": 0.3, "upper": 0.95},
+                    }
+                },
+            }
+        )
+
+        intent = base_intent(entity_type="wine", attributes=["body"])
+        retrieval = retrieve_candidates(
+            self.store,
+            intent,
+            [
+                {"canonical_name": "Narrow Body", "type": "wine"},
+                {"canonical_name": "Wide Body", "type": "wine"},
+            ],
+        )
+        ranked = build_grounding(rank_candidates(retrieval["candidates"], intent))
+
+        self.assertEqual([result["id"] for result in ranked], ["wine_narrow_body", "wine_wide_body"])
+
+    def test_attribute_match_is_capped(self) -> None:
+        facts = score_entity(
+            {
+                "id": "wine_many_attrs",
+                "type": "wine",
+                "canonical_name": "Many Attrs",
+                "attributes": {"body": 0.9, "oak": 0.9, "premium": 0.9},
+            },
+            required=["body", "oak", "premium"],
+            context={},
+            avoid_below=None,
+            recommended_by=None,
+            search_text="",
+            weights=RankingWeights(attribute_match_cap=1.5),
+        )
+
+        self.assertEqual(facts["attribute_match_raw"], 2.7)
+        self.assertEqual(facts["attribute_match"], 1.5)
+        self.assertIn("attribute match capped at 1.5", facts["negative_signals"])
+
+    def test_decision_feedback_boosts_previous_choices(self) -> None:
+        intent = base_intent(entity_type="wine")
+        retrieval = retrieve_candidates(
+            self.store,
+            intent,
+            [
+                {"canonical_name": "Mike's Cabernet", "type": "wine"},
+                {"canonical_name": "Alex's Syrah", "type": "wine"},
+            ],
+        )
+        ranked = build_grounding(
+            rank_candidates(
+                retrieval["candidates"],
+                intent,
+                decision_feedback={
+                    "wine_mike": {"chosen": 4, "rejected": 0},
+                    "wine_alex": {"chosen": 0, "rejected": 4},
+                },
+                weights=RankingWeights(
+                    preference=0,
+                    recommended_by_other=0,
+                    decision_feedback_cap=1,
+                ),
+            )
+        )
+
+        self.assertEqual(ranked[0]["id"], "wine_mike")
+        self.assertIn("chosen previously 4 time(s)", ranked[0]["signal_facts"])
+
+    def test_search_text_handles_accents_and_simple_variants(self) -> None:
+        entity = {
+            "id": "restaurant_italia",
+            "type": "restaurant",
+            "canonical_name": "Caffe Italia",
+            "notes": "Caffe with regional Italia cooking.",
+            "attributes": {},
+            "signals": [],
+        }
+
+        self.assertEqual(score_text_match(entity, "café italianate"), 1.0)
 
     def test_dislike_signal_penalizes_but_does_not_hide_item(self) -> None:
         self.store.add_signal("wine_alex", "dislike", "too heavy")

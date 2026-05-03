@@ -21,6 +21,7 @@ dependencies = [
 [project.scripts]
 palate = "palate.server:main"
 palate-seed = "palate.seed:main"
+palate-eval = "palate.eval:main"
 palate-google-drive-auth = "palate.google_drive:main"
 
 [tool.setuptools.packages.find]

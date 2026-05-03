@@ -549,9 +549,88 @@ class PalateStore:
         self.conn.commit()
         return cursor.rowcount
 
+    def decision_feedback(
+        self,
+        query: str,
+        candidate_ids: list[str],
+        *,
+        limit: int = 100,
+    ) -> dict[str, dict[str, int]]:
+        candidate_set = set(candidate_ids)
+        feedback = {
+            entity_id: {"chosen": 0, "rejected": 0}
+            for entity_id in candidate_ids
+        }
+        if not candidate_set:
+            return feedback
+
+        rows = self.conn.execute(
+            """
+            SELECT query, ranked_json, chosen_entity_id
+            FROM decisions
+            WHERE chosen_entity_id IS NOT NULL
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        for row in rows:
+            historical_query = row["query"] if isinstance(row, sqlite3.Row) else row[0]
+            if not query_is_similar(query, historical_query):
+                continue
+
+            chosen_entity_id = (
+                row["chosen_entity_id"] if isinstance(row, sqlite3.Row) else row[2]
+            )
+            if chosen_entity_id in candidate_set:
+                feedback[chosen_entity_id]["chosen"] += 1
+
+            ranked_json = row["ranked_json"] if isinstance(row, sqlite3.Row) else row[1]
+            try:
+                ranked = json.loads(ranked_json or "[]")
+            except json.JSONDecodeError:
+                ranked = []
+            for item in ranked[:3]:
+                entity_id = item.get("id") if isinstance(item, dict) else None
+                if entity_id in candidate_set and entity_id != chosen_entity_id:
+                    feedback[entity_id]["rejected"] += 1
+
+        return feedback
+
 
 def normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def query_is_similar(current: str, historical: str) -> bool:
+    current_tokens = query_tokens(current)
+    historical_tokens = query_tokens(historical)
+    if not current_tokens or not historical_tokens:
+        return True
+    return bool(current_tokens & historical_tokens)
+
+
+def query_tokens(value: str) -> set[str]:
+    stop_words = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "what",
+        "which",
+        "thing",
+        "things",
+        "place",
+        "places",
+        "something",
+    }
+    return {
+        token
+        for token in normalize(value).split()
+        if len(token) > 2 and token not in stop_words
+    }
 
 
 def clamp01(value: Any) -> float:

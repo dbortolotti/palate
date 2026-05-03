@@ -133,7 +133,15 @@ def palate_query(
         intent,
         extraction["entities"],
     )
-    ranked = rank_candidates(retrieval["candidates"], intent)
+    decision_feedback = store.decision_feedback(
+        query,
+        [entity["id"] for entity in retrieval["candidates"]],
+    )
+    ranked = rank_candidates(
+        retrieval["candidates"],
+        intent,
+        decision_feedback=decision_feedback,
+    )
     grounding = build_grounding(ranked)
     explanation = explain_results(query, intent, grounding) if explain else None
 
@@ -165,7 +173,15 @@ def palate_evaluate_options(
     intent = parse_intent(query, context)
     extraction = extract_entities(options_text, intent.get("entity_type"))
     retrieval = retrieve_candidates(store, intent, extraction["entities"])
-    ranked = rank_candidates(retrieval["candidates"], intent)
+    decision_feedback = store.decision_feedback(
+        query,
+        [entity["id"] for entity in retrieval["candidates"]],
+    )
+    ranked = rank_candidates(
+        retrieval["candidates"],
+        intent,
+        decision_feedback=decision_feedback,
+    )
     grounding = build_grounding(ranked)
     explanation = explain_results(query, intent, grounding)
 

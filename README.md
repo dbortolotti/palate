@@ -17,9 +17,9 @@ The core system owns:
 
 - explicit memory
 - retrieval
-- deterministic ranking
+- deterministic ranking, including uncertainty discounts from 95% attribute intervals
 - negative filtering
-- decision logging
+- decision logging and lightweight revealed-preference feedback
 
 Movie and series memories can store structured metadata plus OMDb-backed IMDb
 and Rotten Tomatoes critic ratings. External ratings are stored as reference
@@ -74,6 +74,41 @@ python3 -m unittest discover -s tests
 The same guide is also exposed as the MCP resource `palate://how-to`.
 
 Option-set tools stay constrained to the provided options. If a pasted option is not already in memory, Palate reports it as unmatched instead of substituting unrelated stored items.
+
+## Ranking Eval
+
+Ranking changes can be checked with a deterministic eval set. Cases provide a
+parsed intent, so the harness does not call the LLM.
+
+```json
+[
+  {
+    "name": "oaky wine",
+    "query": "oaky wine",
+    "intent": {
+      "attributes": ["oak"],
+      "context": {},
+      "filters": {"min_rating": null, "recommended_by": null},
+      "entity_type": "wine",
+      "search_text": ""
+    },
+    "expected_top_3": ["wine_mike", "wine_alex"]
+  }
+]
+```
+
+Run:
+
+```sh
+python3 -m palate.eval eval-cases.json --db ./data/palate.sqlite
+python3 -m palate.eval eval-cases.json --db ./data/palate.sqlite --sweep
+# or, after package install:
+palate-eval eval-cases.json --db ./data/palate.sqlite --sweep
+```
+
+The report includes mean NDCG@3, top-3 overlap, and per-case actual versus
+expected rankings. The sweep grids over the main ranking weights and prints the
+best configurations first.
 
 ## Deployment
 
@@ -172,7 +207,7 @@ only manages files/folders created by this app or explicitly selected for it.
         "OPENAI_API_KEY": "your-openai-api-key",
         "OMDB_API_KEY": "your-omdb-api-key",
         "PALATE_DB_PATH": "./data/palate.sqlite",
-        "PALATE_MODEL": "gpt-5.4-nano"
+        "PALATE_MODEL": "gpt-4o"
       }
     }
   }

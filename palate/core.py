@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 import re
+import unicodedata
 from typing import Any
 
 from .media import (
@@ -9,6 +11,39 @@ from .media import (
     is_media_type,
     metadata_search_text,
 )
+
+
+@dataclass(frozen=True)
+class RankingWeights:
+    preference: float = 1.4
+    context: float = 0.5
+    recommended_by_match: float = 0.6
+    recommended_by_other: float = 0.25
+    recommended_by_miss_penalty: float = 0.5
+    saved: float = 0.15
+    tried: float = 0.1
+    dislike_penalty: float = 1.5
+    attribute_match_cap: float = 1.5
+    attribute_uncertainty_width_penalty: float = 0.5
+    chosen_feedback: float = 0.15
+    rejected_feedback: float = 0.1
+    decision_feedback_cap: float = 0.45
+
+    @classmethod
+    def from_mapping(cls, values: dict[str, Any] | None = None) -> "RankingWeights":
+        weights = cls()
+        if not values:
+            return weights
+        allowed = cls.__dataclass_fields__
+        updates = {
+            key: float(value)
+            for key, value in values.items()
+            if key in allowed and value is not None
+        }
+        return replace(weights, **updates)
+
+
+DEFAULT_WEIGHTS = RankingWeights()
 
 
 def retrieve_candidates(
@@ -39,12 +74,20 @@ def retrieve_candidates(
     }
 
 
-def rank_candidates(candidates: list[dict[str, Any]], intent: dict[str, Any]) -> list[dict[str, Any]]:
+def rank_candidates(
+    candidates: list[dict[str, Any]],
+    intent: dict[str, Any],
+    *,
+    decision_feedback: dict[str, dict[str, Any]] | None = None,
+    weights: RankingWeights | None = None,
+) -> list[dict[str, Any]]:
     avoid_below = (intent.get("filters") or {}).get("min_rating")
     recommended_by = (intent.get("filters") or {}).get("recommended_by")
     required = intent.get("attributes") or []
     context = intent.get("context") or {}
     search_text = intent.get("search_text") or ""
+    decision_feedback = decision_feedback or {}
+    weights = weights or DEFAULT_WEIGHTS
 
     results = []
     for entity in candidates:
@@ -55,6 +98,8 @@ def rank_candidates(candidates: list[dict[str, Any]], intent: dict[str, Any]) ->
             avoid_below=avoid_below,
             recommended_by=recommended_by,
             search_text=search_text,
+            decision_feedback=decision_feedback.get(entity.get("id"), {}),
+            weights=weights,
         )
         if not facts["excluded"]:
             results.append({"entity": entity, "score": facts["total"], "facts": facts})
@@ -77,14 +122,21 @@ def score_entity(
     avoid_below: float | None,
     recommended_by: str | None,
     search_text: str,
+    decision_feedback: dict[str, Any] | None = None,
+    weights: RankingWeights | None = None,
 ) -> dict[str, Any]:
+    weights = weights or DEFAULT_WEIGHTS
+    decision_feedback = decision_feedback or {}
     facts: dict[str, Any] = {
         "preference": 0.0,
         "attribute_match": 0.0,
+        "attribute_match_raw": 0.0,
+        "attribute_uncertainty_penalty": 0.0,
         "context_match": 0.0,
         "search_match": 0.0,
         "provenance": 0.0,
         "familiarity": 0.0,
+        "decision_feedback": 0.0,
         "external_rating_tiebreak": 0.0,
         "penalties": 0.0,
         "matched_attributes": [],
@@ -112,7 +164,7 @@ def score_entity(
                     facts["negative_signals"].append(f"rating below {avoid_below:g}")
 
         if signal_type == "dislike":
-            facts["penalties"] -= 1.5
+            facts["penalties"] -= weights.dislike_penalty
             facts["negative_signals"].append(str(value))
 
         if signal_type == "recommended_by":
@@ -120,15 +172,19 @@ def score_entity(
                 recommended_by and normalize(value) == normalize(recommended_by)
             )
             matched_recommended_by = matched_recommended_by or matches_requested_person
-            facts["provenance"] += 0.6 if matches_requested_person else 0.25
+            facts["provenance"] += (
+                weights.recommended_by_match
+                if matches_requested_person
+                else weights.recommended_by_other
+            )
             facts["signal_facts"].append(f"recommended by {value}")
 
         if signal_type == "saved":
-            facts["familiarity"] += 0.15
+            facts["familiarity"] += weights.saved
             facts["signal_facts"].append("saved")
 
         if signal_type == "tried":
-            facts["familiarity"] += 0.1
+            facts["familiarity"] += weights.tried
             fact = (
                 "watched before"
                 if is_media_type(entity.get("type"))
@@ -137,21 +193,32 @@ def score_entity(
             facts["signal_facts"].append(fact)
 
     if recommended_by and not matched_recommended_by:
-        facts["excluded"] = True
+        facts["provenance"] -= weights.recommended_by_miss_penalty
         facts["negative_signals"].append(f"not recommended by {recommended_by}")
 
+    attribute_match_raw = 0.0
     for attr in required:
         value = float((entity.get("attributes") or {}).get(attr) or 0)
         if value > 0:
-            facts["attribute_match"] += value
+            adjusted = interval_adjusted_attribute_value(entity, attr, value, weights)
+            attribute_match_raw += adjusted
+            facts["attribute_uncertainty_penalty"] += value - adjusted
             facts["matched_attributes"].append(
                 format_attribute_fact(entity, attr, value)
             )
+    facts["attribute_match_raw"] = round(attribute_match_raw, 4)
+    facts["attribute_match"] = min(attribute_match_raw, weights.attribute_match_cap)
+    if attribute_match_raw > facts["attribute_match"]:
+        facts["negative_signals"].append(
+            f"attribute match capped at {weights.attribute_match_cap:g}"
+        )
 
     for key, wanted in context.items():
         value = float((entity.get("attributes") or {}).get(key) or 0)
         if wanted is True and value > 0:
-            facts["context_match"] += value * 0.5
+            adjusted = interval_adjusted_attribute_value(entity, key, value, weights)
+            facts["attribute_uncertainty_penalty"] += value - adjusted
+            facts["context_match"] += adjusted * weights.context
             facts["matched_attributes"].append(
                 format_attribute_fact(entity, key, value, prefix="context ")
             )
@@ -166,13 +233,29 @@ def score_entity(
         entity.get("metadata") or {}
     )
 
+    chosen = float(decision_feedback.get("chosen", 0) or 0)
+    rejected = float(decision_feedback.get("rejected", 0) or 0)
+    chosen_boost = min(chosen * weights.chosen_feedback, weights.decision_feedback_cap)
+    rejected_penalty = min(
+        rejected * weights.rejected_feedback,
+        weights.decision_feedback_cap,
+    )
+    facts["decision_feedback"] = chosen_boost - rejected_penalty
+    if chosen > 0:
+        facts["signal_facts"].append(f"chosen previously {chosen:g} time(s)")
+    if rejected > 0:
+        facts["negative_signals"].append(
+            f"ranked highly but not chosen {rejected:g} time(s)"
+        )
+
     facts["total"] = round(
-        facts["preference"] * 1.4
+        facts["preference"] * weights.preference
         + facts["attribute_match"]
         + facts["context_match"]
         + facts["search_match"]
         + facts["provenance"]
         + facts["familiarity"]
+        + facts["decision_feedback"]
         + facts["penalties"],
         2,
     )
@@ -219,7 +302,7 @@ def score_text_match(entity: dict[str, Any], search_text: str) -> float:
     attributes = " ".join(
         key
         for key, value in (entity.get("attributes") or {}).items()
-        if float(value) > 0.55
+        if float(value) > 0.25
     )
     signals = " ".join(
         f"{signal.get('type')} {signal.get('value')} {signal.get('provenance') or ''}"
@@ -239,7 +322,12 @@ def score_text_match(entity: dict[str, Any], search_text: str) -> float:
             if part
         )
     )
-    matched = [token for token in tokens if token in haystack]
+    haystack_terms = expanded_terms(haystack)
+    matched = [
+        token
+        for token in tokens
+        if token_variants(token) & haystack_terms or token in haystack
+    ]
     return len(matched) / len(tokens)
 
 
@@ -252,7 +340,55 @@ def tokenize(value: str) -> list[str]:
 
 
 def normalize(value: Any) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    folded = unicodedata.normalize("NFKD", str(value or "").lower()).encode(
+        "ascii",
+        "ignore",
+    ).decode("ascii")
+    return re.sub(r"[^a-z0-9]+", " ", folded).strip()
+
+
+def expanded_terms(value: str) -> set[str]:
+    terms: set[str] = set()
+    for token in tokenize(value):
+        terms.update(token_variants(token))
+    return terms
+
+
+def token_variants(token: str) -> set[str]:
+    variants = {token, collapse_repeated_letters(token)}
+    if token.endswith("y") and len(token) > 3:
+        variants.add(f"{token[:-1]}i")
+    if token.endswith("ia") and len(token) > 4:
+        variants.add(token[:-1])
+    if token.endswith("ian") and len(token) > 5:
+        variants.add(token[:-2])
+    if token.endswith("ianate") and len(token) > 8:
+        variants.add(token[:-3])
+        variants.add(token[:-5])
+    for suffix in ("ing", "ed", "es", "s"):
+        if token.endswith(suffix) and len(token) > len(suffix) + 3:
+            variants.add(token[: -len(suffix)])
+    return {variant for variant in variants if len(variant) > 2}
+
+
+def collapse_repeated_letters(token: str) -> str:
+    return re.sub(r"([a-z])\1+", r"\1", token)
+
+
+def interval_adjusted_attribute_value(
+    entity: dict[str, Any],
+    key: str,
+    value: float,
+    weights: RankingWeights,
+) -> float:
+    interval = (entity.get("attribute_intervals_95") or {}).get(key) or {
+        "lower": value,
+        "upper": value,
+    }
+    lower = float(interval.get("lower", value))
+    upper = float(interval.get("upper", value))
+    width = max(0.0, min(1.0, upper) - max(0.0, lower))
+    return max(0.0, value - (width * weights.attribute_uncertainty_width_penalty))
 
 
 def format_attribute_fact(
