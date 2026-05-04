@@ -7,13 +7,13 @@ instead of running from the development checkout.
 The service runs locally on:
 
 ```text
-http://127.0.0.1:8787/palate
+http://127.0.0.1:8787/mcp
 ```
 
 Cloudflare Tunnel exposes the authenticated MCP endpoint publicly on:
 
 ```text
-https://mcp.dceb.net/palate
+https://palate.dceb.net/mcp
 ```
 
 ## Production Layout
@@ -105,8 +105,8 @@ The current public production route is managed by Cloudflare Tunnel:
 ~/.cloudflared/config.yml
 ```
 
-with ingress for `mcp.dceb.net` pointing at `http://127.0.0.1:8787`. The
-Palate service itself serves `/palate`; Cloudflare preserves the request path.
+with ingress for `palate.dceb.net` pointing at `http://127.0.0.1:8787`. The
+Palate service itself serves `/mcp`; Cloudflare preserves the request path.
 
 The previous Tailscale Funnel route is retired for production. Restore it only
 from git history if you intentionally need the old development exposure.
@@ -134,16 +134,17 @@ The LaunchAgent enables Palate OAuth for remote MCP clients:
 
 ```text
 PALATE_AUTH_ENABLED=1
-PALATE_PUBLIC_BASE_URL=https://mcp.dceb.net
-PALATE_PUBLIC_MCP_PATH=/palate
+PALATE_PUBLIC_BASE_URL=https://palate.dceb.net
+PALATE_PUBLIC_MCP_PATH=/mcp
 PALATE_AUTH_SCOPES=palate.access
 ```
 
 The OAuth resource URL is `PALATE_PUBLIC_BASE_URL` plus
 `PALATE_PUBLIC_MCP_PATH`. When `PALATE_PUBLIC_MCP_PATH` is unset, Palate falls
-back to `PALATE_MCP_PATH` and then `/mcp`. For a Cloudflare Tunnel URL like
-`https://mcp.dceb.net/palate`, use `PALATE_PUBLIC_BASE_URL=https://mcp.dceb.net`
-and `PALATE_PUBLIC_MCP_PATH=/palate`.
+back to `PALATE_MCP_PATH` and then `/mcp`. For the production Cloudflare Tunnel
+URL `https://palate.dceb.net/mcp`, use
+`PALATE_PUBLIC_BASE_URL=https://palate.dceb.net` and
+`PALATE_PUBLIC_MCP_PATH=/mcp`.
 
 The first ChatGPT connection opens a Palate login page. The password is stored
 at:
@@ -228,5 +229,5 @@ FastMCP validates Host headers to protect against DNS rebinding. The LaunchAgent
 localhost
 localhost:8787
 modal.tail63a6b7.ts.net
-mcp.dceb.net
+palate.dceb.net
 ```
