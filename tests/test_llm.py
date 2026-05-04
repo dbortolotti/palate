@@ -125,8 +125,13 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             5,
         )
         self.assertIn("outdoor_space", restaurant_attributes)
+        self.assertIn("smoking", restaurant_attributes)
         self.assertIn(
             "outdoor_space",
+            json_response.call_args.kwargs["schema"]["properties"]["attributes"]["properties"],
+        )
+        self.assertIn(
+            "smoking",
             json_response.call_args.kwargs["schema"]["properties"]["attributes"]["properties"],
         )
 

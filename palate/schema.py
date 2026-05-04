@@ -38,6 +38,7 @@ ATTRIBUTE_KEYS_BY_TYPE = {
         "comfort",
         "view",
         "outdoor_space",
+        "smoking",
         "classic",
         "casual",
     ],

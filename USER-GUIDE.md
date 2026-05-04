@@ -66,7 +66,7 @@ It understands different fixed taste attributes for each entity type:
   `nutty`, `caramelized`, `woody`, `earthy`, `chemical`, `pungent`,
   `oxidized`, `microbiological`
 - `restaurant`: `premium`, `quiet`, `lively`, `indulgent`, `novelty`,
-  `comfort`, `view`, `classic`, `casual`
+  `comfort`, `view`, `outdoor_space`, `smoking`, `classic`, `casual`
 - `music`: `quiet`, `lively`, `intellectual`, `comfort`, `classic`,
   `novelty`, `intensity`, `indulgent`
 - `cigar`: `premium`, `richness`, `intensity`, `classic`, `indulgent`,
