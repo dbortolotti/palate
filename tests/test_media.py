@@ -21,6 +21,7 @@ class RestaurantCuisineGenreTest(unittest.TestCase):
     def test_restaurant_genres_are_controlled_enum_with_other(self) -> None:
         self.assertIn("italian", RESTAURANT_GENRES)
         self.assertIn("mexican", RESTAURANT_GENRES)
+        self.assertIn("cocktail_bar_drinks", RESTAURANT_GENRES)
         self.assertIn("other", RESTAURANT_GENRES)
 
     def test_restaurant_genre_aliases_map_to_enum_values(self) -> None:
@@ -31,6 +32,10 @@ class RestaurantCuisineGenreTest(unittest.TestCase):
         self.assertEqual(
             normalize_restaurant_genres(["Peruvian", "Lebanese"]),
             ["latin_american", "middle_eastern"],
+        )
+        self.assertEqual(
+            normalize_restaurant_genres(["cocktail bar/drinks", "cocktails"]),
+            ["cocktail_bar_drinks"],
         )
         self.assertEqual(
             normalize_restaurant_cuisine(["Pizzeria", "Sushi"]),

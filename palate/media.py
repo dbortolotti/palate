@@ -64,6 +64,7 @@ RESTAURANT_GENRES = [
     "barbecue",
     "british",
     "chinese",
+    "cocktail_bar_drinks",
     "eastern_european",
     "french",
     "greek",
@@ -134,8 +135,15 @@ RESTAURANT_GENRE_ALIASES = {
     "british": "british",
     "cantonese": "chinese",
     "central_european": "eastern_european",
+    "cocktail": "cocktail_bar_drinks",
+    "cocktail_bar": "cocktail_bar_drinks",
+    "cocktail_bars": "cocktail_bar_drinks",
+    "cocktail_lounge": "cocktail_bar_drinks",
+    "cocktails": "cocktail_bar_drinks",
     "deli": "american",
     "dim_sum": "chinese",
+    "drinks": "cocktail_bar_drinks",
+    "drinks_bar": "cocktail_bar_drinks",
     "eastern_european": "eastern_european",
     "european": "modern_european",
     "filipino": "south_east_asian",
@@ -170,6 +178,7 @@ RESTAURANT_GENRE_ALIASES = {
     "vegan": "vegetarian_vegan",
     "vegetarian": "vegetarian_vegan",
     "vietnamese": "vietnamese",
+    "wine_bar": "cocktail_bar_drinks",
 }
 
 MICHELIN_STATUS_ALIASES = {

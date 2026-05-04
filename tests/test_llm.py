@@ -124,6 +124,11 @@ class LlmSchemaBehaviorTest(unittest.TestCase):
             metadata_schema["properties"]["google"]["properties"]["rating"]["maximum"],
             5,
         )
+        self.assertIn("outdoor_space", restaurant_attributes)
+        self.assertIn(
+            "outdoor_space",
+            json_response.call_args.kwargs["schema"]["properties"]["attributes"]["properties"],
+        )
 
     def test_restaurant_web_enrichment_requests_direct_1sigma_interval(self) -> None:
         restaurant_attributes = attribute_keys_for_type("restaurant")
